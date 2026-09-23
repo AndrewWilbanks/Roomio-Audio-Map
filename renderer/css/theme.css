@@ -1,0 +1,100 @@
+/* theme.css — design tokens + base styles (light/dark via data-theme on <html>).
+   Fonts are bundled so the app works offline: Montserrat (UI) + Playfair Display (headings),
+   both SIL Open Font License. */
+@font-face{font-family:'Montserrat';font-style:normal;font-weight:500 900;font-display:swap;src:url('fonts/montserrat.woff2') format('woff2');}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:700 900;font-display:swap;src:url('fonts/playfair.woff2') format('woff2');}
+@font-face{font-family:'Playfair Display';font-style:italic;font-weight:700 900;font-display:swap;src:url('fonts/playfair-italic.woff2') format('woff2');}
+
+/* ---- Design tokens ---- */
+:root{
+  --cream:#EFEEE7; --paper:#FBFAF4; --surface:#ffffff;
+  --ink:#081A26; --ink2:#3c4d57; --ink3:#6c7a82;
+  --sky:#87CEF2; --skydk:#5D90AB; --steel:#A9BED3; --yellow:#FEF3C5;
+  --line:rgba(8,26,38,.16); --line2:rgba(8,26,38,.10);
+  --ok:#5FA86C; --warn:#E0A458; --danger:#D1495B;
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+html[data-theme="dark"]{
+  --cream:#14181f; --paper:#1c2029; --surface:#252b36;
+  --ink:#e9edf1; --ink2:#b3bcc7; --ink3:#8792a0;
+  --skydk:#8fbbdd; --steel:#54626f; --yellow:#4a4327;
+  --line:rgba(255,255,255,.15); --line2:rgba(255,255,255,.08);
+  color-scheme:dark;
+}
+
+/* ---- Base ---- */
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Montserrat',system-ui,sans-serif;color:var(--ink);background:var(--cream);
+  -webkit-font-smoothing:antialiased;line-height:1.55;position:relative;}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.045;
+  background-image:var(--grain);background-size:300px;}
+main,.page{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:24px 22px;}
+
+h1,h2,h3,.serif{font-family:'Playfair Display',serif;font-weight:800;line-height:1.1;letter-spacing:-.01em;margin:0 0 .3em;}
+h1{font-size:32px;font-weight:900;} h2{font-size:24px;} h3{font-size:19px;}
+a{color:var(--skydk);}
+.eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--skydk);}
+.muted{color:var(--ink3);}
+
+/* ---- Cards / panels ---- */
+.card,.panel{background:var(--paper);border:1.5px solid var(--line);border-radius:16px;padding:18px 20px;}
+.card:hover{box-shadow:0 10px 26px rgba(8,26,38,.12);}
+
+/* ---- Buttons ---- */
+.btn{background:var(--ink);color:var(--cream);border:1.5px solid var(--ink);border-radius:12px;
+  font-family:inherit;font-weight:800;font-size:14px;letter-spacing:.05em;text-transform:uppercase;
+  padding:12px 18px;cursor:pointer;transition:.12s;}
+.btn:hover{transform:translateY(-1px);}
+.btn:active{transform:scale(.98);}
+.btn.alt{background:transparent;color:var(--ink);}
+.btn.sky{background:var(--sky);color:var(--ink);border-color:var(--sky);}
+.btn.sm{font-size:12.5px;padding:8px 13px;}
+
+/* ---- Chips / pills / filters ---- */
+.chip{background:var(--surface);border:1.5px solid var(--line);color:var(--ink2);border-radius:22px;
+  padding:7px 13px;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;}
+.chip.on{background:var(--ink);color:var(--cream);border-color:var(--ink);}
+
+/* ---- Inputs ---- */
+input,select,textarea{width:100%;background:var(--surface);color:var(--ink);border:1.5px solid var(--line);
+  border-radius:10px;padding:10px 12px;font-family:inherit;font-size:15px;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--skydk);box-shadow:0 0 0 3px rgba(135,206,242,.3);}
+label{display:block;font-size:12px;font-weight:700;color:var(--ink2);margin:12px 0 4px;}
+
+/* ---- Badges (statuses) ---- */
+.badge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;border-radius:20px;padding:3px 10px;}
+.badge.ok{background:rgba(95,168,108,.16);color:#2e7d52;}
+.badge.warn{background:rgba(224,164,88,.2);color:#b9770e;}
+.badge.danger{background:rgba(209,73,91,.16);color:#c0392b;}
+
+/* ---- Stat cards (counts, values) ---- */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+@media(max-width:620px){.stats{grid-template-columns:1fr 1fr;}}
+.stat{background:var(--paper);border:1.5px solid var(--line);border-radius:14px;padding:16px 18px;}
+.stat .l{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);}
+.stat .v{font-family:'Playfair Display',serif;font-weight:800;font-size:26px;line-height:1;margin-top:4px;}
+
+/* ---- Progress / usage bar ---- */
+.bar{height:8px;background:var(--line2);border-radius:6px;overflow:hidden;}
+.bar>span{display:block;height:100%;border-radius:6px;background:var(--skydk);}
+
+/* ---- Tables ---- */
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);padding:8px 10px;border-bottom:1.5px solid var(--line);}
+td{padding:11px 10px;border-bottom:1px solid var(--line2);font-size:13.5px;}
+
+/* ---- Top bar ---- */
+.topbar{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--cream) 88%,transparent);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--line2);}
+.topbar .row{max-width:1180px;margin:0 auto;padding:12px 22px;display:flex;align-items:center;gap:16px;}
+.topbar .logo{display:flex;align-items:center;gap:10px;font-weight:900;font-size:15px;}
+.topbar .logo img{width:38px;height:38px;object-fit:contain;}
+
+/* ---- Empty state ---- */
+.empty{text-align:center;padding:44px 20px;border:1.5px dashed var(--line);border-radius:16px;color:var(--ink3);}
+.empty img{width:96px;opacity:.92;margin-bottom:10px;}
+.empty .t{font-family:'Playfair Display',serif;font-weight:800;font-size:19px;color:var(--ink);}
+.empty .s{font-size:13.5px;margin-top:6px;}
+
+/* ---- Line-icon defaults (Lucide/Feather match) ---- */
+svg.icon{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;}

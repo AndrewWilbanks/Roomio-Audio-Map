@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roomio</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self'">
+  <meta name="theme-color" content="#081A26">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/theme-init.js"></script>
+</head>
+<body>
+
+
+
+  <div class="app">
+    <header class="tb-topbar">
+      <div class="tb-row">
+        <div class="tb-logo"><svg class="app-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="8"/><path d="M9 21c2-6 4-10 7-10s5 4 7 10" /><circle cx="16" cy="11" r="2.2"/></svg><span>Roomio</span></div>
+        <div class="metric-picker"><select id="metric-select" aria-label="Measurement to show"></select></div>
+        <div class="tb-right">
+          <button class="status-pill" id="smaart-pill"><span class="dot"></span><span class="txt">Smaart off</span></button>
+          <div class="tb-actions">
+            <button class="tb-action" id="btn-booth">📍 Place booth</button>
+            <button class="tb-action" id="btn-edit">✏️ Edit seats</button>
+            <button class="tb-action" id="btn-smaart">Smaart</button>
+            <button class="tb-action" id="btn-data">Data</button>
+            <button class="tb-action" id="btn-settings">Settings</button>
+          </div>
+          <button class="tb-themebtn" id="theme-toggle" title="Toggle dark mode">🌙</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow" id="page-eyebrow">Seat Map</div>
+          <h1 class="page-title" id="page-title">Loading…</h1>
+          <div class="page-subtitle" id="page-subtitle"></div>
+        </div>
+        <div class="chips" id="page-chips"></div>
+      </div>
+
+      <div class="layout">
+        <div class="col-main">
+        <section class="card map-card">
+          <div class="map-wrap" id="map">
+            <div class="map-banner" id="map-banner"></div>
+            <div class="map-tools">
+              <button id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+              <button id="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+              <button id="zoom-fit" title="Fit room" aria-label="Fit room" style="font-size:14px">⤢</button>
+            </div>
+          </div>
+          <div class="legend" id="legend"></div>
+          <div class="hint" style="padding:0 18px 12px">Values in <b id="map-unit">dB</b>. Drag to pan, scroll or pinch to zoom.</div>
+        </section>
+
+        <section class="card fr-card">
+          <div class="card-header">
+            <div><h3 class="card-title">Frequency response</h3><div class="fr-sub" id="fr-sub"></div></div>
+            <div class="chips" id="fr-chips"></div>
+          </div>
+          <div class="fr-body" id="fr-body"></div>
+        </section>
+        </div>
+
+        <aside class="side">
+          <section class="card">
+            <div class="card-header"><h3 class="card-title">FOH Booth</h3><span class="eyebrow" style="font-size:10px">Smaart reference</span></div>
+            <div class="card-body tight">
+              <div class="tiles" id="booth-tiles"></div>
+              <p class="hint" id="booth-note" style="margin:10px 2px 0"></p>
+            </div>
+          </section>
+          <section class="card">
+            <div class="card-header"><h3 class="card-title">Seat</h3></div>
+            <div class="card-body" id="seat-panel"></div>
+          </section>
+          <section class="card">
+            <div class="card-header"><h3 class="card-title">Room summary</h3></div>
+            <div class="card-body" id="summary"></div>
+          </section>
+        </aside>
+      </div>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/bridge.js"></script>
+  <script src="js/auditorium.js"></script>
+  <script src="js/metrics.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/smaart.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/fr-chart.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

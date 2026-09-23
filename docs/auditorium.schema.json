@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roomio.app/auditorium.schema.json",
+  "title": "Roomio auditorium file",
+  "description": "Seat positions for one room. Coordinates are in any consistent unit; the app sizes the map from seat spacing.",
+  "type": "object",
+  "required": ["name", "seats"],
+  "properties": {
+    "format": { "const": "roomio-auditorium" },
+    "schemaVersion": { "const": 1, "description": "Omit only for hand-written files; version 1 is assumed." },
+    "name": { "type": "string", "minLength": 1, "description": "Venue or room name shown in the app." },
+    "units": { "enum": ["px", "ft", "in", "m", "cm", "mm"], "default": "px", "description": "Unit of x/y/z. Informational (shown next to coordinates)." },
+    "yAxis": { "enum": ["down", "up"], "default": "down", "description": "\"down\" = screen/SVG style (y grows downward); \"up\" = CAD style (y grows upward)." },
+    "seats": {
+      "type": "array", "minItems": 1, "maxItems": 20000,
+      "items": {
+        "type": "object",
+        "required": ["id", "x", "y"],
+        "properties": {
+          "id": { "type": ["string", "number"], "description": "Unique seat label, e.g. \"A-12-4\". Readings are stored against it." },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "z": { "type": "number", "description": "Height (optional), e.g. for balconies or raked seating." },
+          "section": { "type": "string", "default": "Main" },
+          "row": { "type": ["integer", "string"], "description": "Row number or letter. Used for labels and walk-through order." },
+          "seat": { "type": ["integer", "string"], "description": "Seat number within the row." },
+          "rotation": { "type": "number", "description": "Degrees; 0 = seat faces up the screen. Default: face the stage." }
+        },
+        "additionalProperties": true
+      }
+    },
+    "stage": {
+      "type": "object", "required": ["x", "y"],
+      "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "label": { "type": "string", "default": "Stage" } },
+      "description": "Centre front of the stage. Seats face it; section labels sit on the far side."
+    },
+    "foh": {
+      "type": "object", "required": ["x", "y"],
+      "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "z": { "type": "number" } },
+      "description": "Suggested FOH mix position (can be moved in the app)."
+    },
+    "background": {
+      "type": "object", "required": ["image", "x", "y", "width", "height"],
+      "properties": {
+        "image": { "type": "string", "pattern": "^data:image/(svg\\+xml|png|jpeg|webp);base64,", "description": "Floor plan as a data URI, max 25 MB." },
+        "x": { "type": "number" }, "y": { "type": "number" },
+        "width": { "type": "number", "exclusiveMinimum": 0 }, "height": { "type": "number", "exclusiveMinimum": 0 },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "description": "Optional floor-plan drawing placed under the seats, in seat coordinates (x,y = top-left for yAxis down; bottom-left for yAxis up)."
+    }
+  },
+  "additionalProperties": true
+}

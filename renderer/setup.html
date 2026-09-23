@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Set up a venue · Roomio</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self'">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/setup.css">
+  <script src="js/theme-init.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header class="tb-topbar">
+      <div class="tb-row">
+        <div class="tb-logo"><svg class="app-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="8"/><path d="M9 21c2-6 4-10 7-10s5 4 7 10" /><circle cx="16" cy="11" r="2.2"/></svg><span>Roomio</span></div>
+        <ol class="stepper" id="stepper">
+          <li data-step="1"><span>1</span>Auditorium</li>
+          <li data-step="2"><span>2</span>FOH position</li>
+          <li data-step="3"><span>3</span>Smaart</li>
+          <li data-step="4"><span>4</span>Save</li>
+        </ol>
+        <div class="tb-right"><button class="tb-action" id="btn-cancel" hidden>Cancel</button></div>
+      </div>
+    </header>
+
+    <main class="main setup">
+      <!-- Step 1: auditorium file -->
+      <section class="card step" data-step="1">
+        <div class="card-header"><div><div class="eyebrow">Step 1 of 4</div><h2 class="card-title">Import your auditorium</h2></div></div>
+        <div class="card-body">
+          <p class="hint">An auditorium file lists every seat with its position. Use a <b>.json</b> auditorium file, or a <b>.csv</b> with columns <code>seat,x,y,z</code>.</p>
+          <label class="drop" id="drop">
+            <input type="file" id="file" accept=".json,.csv,.txt,application/json,text/csv" hidden>
+            <div class="drop-t">Drop a file here, or <u>choose a file</u></div>
+            <div class="drop-s">.json auditorium file · .csv seat list (seat,x,y,z)</div>
+          </label>
+          <div class="chips" style="margin-top:10px">
+            <button class="btn btn-secondary btn-sm" id="btn-example">Use the example hall</button>
+            <button class="btn btn-secondary btn-sm" id="btn-profile" title="A .roomio.json file exported from Roomio on another computer">Import a venue profile…</button>
+            <details class="fmt"><summary>What goes in the file?</summary>
+              <pre>{
+  "format": "roomio-auditorium",
+  "schemaVersion": 1,
+  "name": "Main Auditorium",
+  "units": "ft",
+  "yAxis": "down",
+  "stage": { "x": 0, "y": 0 },
+  "seats": [
+    { "id": "A-1-1", "section": "A", "row": 1, "seat": 1, "x": -12.5, "y": 20 },
+    { "id": "A-1-2", "section": "A", "row": 1, "seat": 2, "x": -10.5, "y": 20 }
+  ]
+}</pre>
+              <p class="hint">CSV: one seat per line — <code>seat,x,y,z</code> (z optional). Labels like <code>A-12-4</code> are read as section A, row 12, seat 4. Optional extra columns: <code>section,row,number</code>. Full details are in the README.</p>
+            </details>
+          </div>
+
+          <div id="csv-opts" class="csv-opts" hidden>
+            <div class="form-row three">
+              <div><label for="csv-name">Venue name</label><input id="csv-name" placeholder="e.g. Main Auditorium"></div>
+              <div><label for="csv-units">Units</label><select id="csv-units"><option value="ft">feet</option><option value="m">metres</option><option value="in">inches</option><option value="cm">centimetres</option><option value="mm">millimetres</option><option value="px">drawing units</option></select></div>
+              <div><label for="csv-yaxis">Y axis</label><select id="csv-yaxis"><option value="up">Y goes up (CAD)</option><option value="down">Y goes down (screen)</option></select></div>
+            </div>
+          </div>
+
+          <div id="result" class="result" hidden></div>
+        </div>
+      </section>
+
+      <!-- Step 2: FOH (and stage) position -->
+      <section class="card step" data-step="2" hidden>
+        <div class="card-header">
+          <div><div class="eyebrow">Step 2 of 4</div><h2 class="card-title">Where is FOH?</h2></div>
+          <div class="chips" id="place-chips">
+            <button class="chip on" data-place="foh">Place FOH</button>
+            <button class="chip" data-place="stage" id="chip-stage">Place stage (optional)</button>
+          </div>
+        </div>
+        <div class="map-wrap mode-booth setup-map" id="setup-map">
+          <div class="map-tools">
+            <button id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+            <button id="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+            <button id="zoom-fit" title="Fit room" aria-label="Fit room" style="font-size:14px">⤢</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <p class="hint" id="place-hint">Click the map where the FOH mix position (the Smaart measurement mic at the booth) is. Or type the position:</p>
+          <div class="form-row three coord-row">
+            <div><label for="foh-x">FOH x <span class="muted unit"></span></label><input id="foh-x" type="number" step="any"></div>
+            <div><label for="foh-y">FOH y <span class="muted unit"></span></label><input id="foh-y" type="number" step="any"></div>
+            <div><label for="foh-z">FOH height z <span class="muted">(optional)</span></label><input id="foh-z" type="number" step="any"></div>
+          </div>
+          <p class="hint small">Positions are in the same coordinates as your auditorium file.</p>
+        </div>
+      </section>
+
+      <!-- Step 3: Smaart -->
+      <section class="card step" data-step="3" hidden>
+        <div class="card-header"><div><div class="eyebrow">Step 3 of 4</div><h2 class="card-title">Connect to Smaart</h2></div></div>
+        <div class="card-body">
+          <div class="note" style="margin-top:0"><b>In Smaart:</b> Options → Preferences → API → turn on the API. If Smaart runs on this computer, keep the host as <b>localhost</b>.</div>
+          <div class="form-row three">
+            <div><label for="sm-host">Smaart computer (host or IP)</label><input id="sm-host" value="localhost" autocomplete="off"></div>
+            <div><label for="sm-port">Port</label><input id="sm-port" type="number" value="26000" min="1" max="65535"></div>
+            <div><label for="sm-path">Smaart version</label><select id="sm-path">
+              <option value="/api/v4/">Smaart v9 (/api/v4/)</option>
+              <option value="/api/v3/">Smaart 8 / Di 2 (/api/v3/)</option>
+              <option value="">None</option></select></div>
+          </div>
+          <div class="form-row">
+            <div><label for="sm-pw">API password <span class="muted">(only if you set one in Smaart)</span></label><input id="sm-pw" type="password" autocomplete="off"></div>
+            <div><label>&nbsp;</label><label class="check" style="margin:8px 0 0"><input type="checkbox" id="sm-auto" checked> Connect automatically when the app opens</label></div>
+          </div>
+          <div class="entry-actions">
+            <button class="btn btn-sky btn-sm" id="btn-test">Test connection</button>
+            <span class="test-result" id="test-result" role="status"></span>
+          </div>
+          <p class="hint small" style="margin-top:12px">You can skip this and connect later from the Smaart button. The password is stored encrypted in your system keychain, never in the venue file.</p>
+        </div>
+      </section>
+
+      <!-- Step 4: review + save -->
+      <section class="card step" data-step="4" hidden>
+        <div class="card-header"><div><div class="eyebrow">Step 4 of 4</div><h2 class="card-title">Review and save</h2></div></div>
+        <div class="card-body"><dl class="review" id="review"></dl>
+          <p class="hint small" id="save-where"></p>
+        </div>
+      </section>
+
+      <div class="wizard-nav">
+        <button class="btn btn-secondary" id="btn-back" hidden>Back</button>
+        <span class="wizard-err" id="nav-err" role="alert"></span>
+        <button class="btn btn-primary" id="btn-next" disabled>Next</button>
+      </div>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/bridge.js"></script>
+  <script src="js/auditorium.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/setup.js"></script>
+</body>
+</html>
