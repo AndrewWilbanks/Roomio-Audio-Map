@@ -10,39 +10,78 @@ permissions:
   contents: write            # create the release and upload assets
 
 jobs:
+  # Create the draft release once, up front. Without this, parallel uploads from the build
+  # jobs each create their own draft and the files end up split across duplicates.
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Create draft release for this version (if missing)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists."
+          else
+            gh release create "$TAG" --draft --title "$VERSION" --notes "Roomio $VERSION" --verify-tag
+          fi
+
   mac:
+    needs: prepare
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npm test
       - name: Build universal .dmg/.zip and publish
-        run: npx electron-builder --mac --publish always
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signing + notarization are optional: without them the app is unsigned and
           # macOS auto-update can't install updates. See docs/RELEASING.md.
-          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MAC_CERT_P12_BASE64 != '' }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MAC_CERT: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          NOTARIZE_ID: ${{ secrets.APPLE_ID }}
+          NOTARIZE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          NOTARIZE_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+        # Only hand electron-builder signing variables that actually have values: an empty
+        # CSC_LINK is read as a file path and fails the build.
+        run: |
+          if [ -n "$MAC_CERT" ]; then
+            export CSC_LINK="$MAC_CERT" CSC_KEY_PASSWORD="$MAC_CERT_PASSWORD"
+            if [ -n "$NOTARIZE_ID" ]; then
+              export APPLE_ID="$NOTARIZE_ID" APPLE_APP_SPECIFIC_PASSWORD="$NOTARIZE_PASSWORD" APPLE_TEAM_ID="$NOTARIZE_TEAM"
+            fi
+          else
+            echo "No signing certificate configured: building an unsigned app."
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          npx electron-builder --mac --publish always
 
   windows:
+    needs: prepare
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npm test
       - name: Build NSIS installer (x64 + arm64) and publish
-        run: npx electron-builder --win --publish always
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.WIN_CERT_PFX_BASE64 }}
-          CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.WIN_CERT_PFX_BASE64 != '' }}
+          WIN_CERT: ${{ secrets.WIN_CERT_PFX_BASE64 }}
+          WIN_CERT_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+        run: |
+          if [ -n "$WIN_CERT" ]; then
+            export CSC_LINK="$WIN_CERT" CSC_KEY_PASSWORD="$WIN_CERT_PASSWORD"
+          else
+            echo "No signing certificate configured: building an unsigned installer."
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          npx electron-builder --win --publish always
