@@ -100,8 +100,10 @@ const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8').split(/\n##
 const out = page(render(readme));
 const target = path.join(ROOT, 'renderer', 'help.html');
 if (process.argv.includes('--check')) {
+  // compare ignoring line endings (Git on Windows may check files out with CRLF)
+  const norm = (t) => t.replace(/\r\n/g, '\n');
   const cur = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : '';
-  if (cur !== out) { console.error('renderer/help.html is out of date — run: node dev/build-help.js'); process.exit(1); }
+  if (norm(cur) !== norm(out)) { console.error('renderer/help.html is out of date — run: node dev/build-help.js'); process.exit(1); }
 } else {
   fs.writeFileSync(target, out);
   console.log('wrote', path.relative(ROOT, target));

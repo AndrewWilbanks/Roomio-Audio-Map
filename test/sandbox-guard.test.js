@@ -20,7 +20,9 @@ const files = [];
   }
 })(path.join(ROOT, 'renderer'));
 const src = (p) => fs.readFileSync(p, 'utf8');
-const hits = (re, allow = []) => files.filter(p => !allow.includes(path.relative(ROOT, p)) && re.test(src(p))).map(p => path.relative(ROOT, p));
+// repo-relative, always with forward slashes (Windows gives back-slashes)
+const rel = (p) => path.relative(ROOT, p).split(path.sep).join('/');
+const hits = (re, allow = []) => files.filter(p => !allow.includes(rel(p)) && re.test(src(p))).map(rel);
 
 test('no child processes, shell exec, AppleScript or PowerShell', () => {
   assert.deepStrictEqual(hits(/child_process|\bexecFile?\(|\bspawn\(|osascript|powershell/i), []);
@@ -44,7 +46,7 @@ test('Smaart connection values are not hard-coded outside smaart-defaults.js', (
   const offenders = files.filter(p => !p.endsWith('smaart-defaults.js')).filter(p => {
     const code = src(p).split('\n').filter(l => !/^\s*(\/\/|\*|<!--)/.test(l)).join('\n');
     return /['"`]localhost['"`]|\|\|\s*26000|\?\?\s*26000|port:\s*26000/.test(code);
-  }).map(p => path.relative(ROOT, p));
+  }).map(rel);
   assert.deepStrictEqual(offenders, []);
 });
 test('self-update is gated by build target', () => {

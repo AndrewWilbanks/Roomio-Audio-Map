@@ -1,0 +1,6 @@
+# Keep text files LF on every OS (tests compare generated files byte-for-byte)
+* text=auto eol=lf
+*.png binary
+*.woff2 binary
+*.icns binary
+*.ico binary
