@@ -4,15 +4,23 @@
 const EventEmitter = require('events');
 const Auditorium = require('../renderer/js/auditorium.js');
 const SMAART_DEFAULTS = require('../renderer/js/smaart-defaults.js');
+const V4 = require('../renderer/js/smaart-v4.js');
 
 const THIRDS = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800,
   1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000];
 
-// Field mapping that matches the simulated messages below
+// Simulated Smaart v9 sources: an FOH and a roaming mic, each with a calibrated input + RTA
+const DEMO_SOURCES = {
+  inputs: [{ device: 'Demo I-O', channel: 'FOH', streamEndpoint: '(simulated)' }, { device: 'Demo I-O', channel: 'Roaming', streamEndpoint: '(simulated)' }],
+  measurements: [{ measurement: 'FOH RTA', streamEndpoint: '(simulated)' }, { measurement: 'Roaming RTA', streamEndpoint: '(simulated)' }],
+};
 const DEMO_SMAART = {
-  ...SMAART_DEFAULTS, autoConnect: true, pollMs: 500, pollMessages: '', smoothing: 0.35,
-  paths: { spl: 'meters.name=Booth.dBA' }, seatPaths: { spl: 'meters.name=Roaming.dBA' },
-  spectrumPath: 'spectrum.name=Booth.bins', seatSpectrumPath: 'spectrum.name=Roaming.bins',
+  ...SMAART_DEFAULTS, mode: 'v4', autoConnect: true, smoothing: 0.35, splMetric: V4.DEFAULT_SPL_METRIC,
+  sources: {
+    booth: { spl: { device: 'Demo I-O', channel: 'FOH' }, spectrum: { measurement: 'FOH RTA' } },
+    seat: { spl: { device: 'Demo I-O', channel: 'Roaming' }, spectrum: { measurement: 'Roaming RTA' } },
+  },
+  pollMs: 500, pollMessages: '', paths: {}, seatPaths: {}, spectrumPath: '', seatSpectrumPath: '',
 };
 
 // deterministic pseudo-random, so every demo looks the same
@@ -97,9 +105,11 @@ class DemoSmaart extends EventEmitter {
   setStatus(status, message) { this.state = { ...this.state, status, message }; this.emit('status', this.state); }
   connect() {
     this.stop(true);
+    this.state = { ...this.state, url: 'simulated (demo mode)', server: { name: 'Smaart (simulated)', version: '' }, sources: DEMO_SOURCES,
+      streams: [['spl', 'Demo I-O · FOH', 'booth'], ['spectrum', 'FOH RTA', 'booth'], ['spl', 'Demo I-O · Roaming', 'seat'], ['spectrum', 'Roaming RTA', 'seat']]
+        .map(([kind, label, role]) => ({ kind, label, roles: [role], open: true })) };
     this.setStatus('live', 'Demo — simulated Smaart data');
-    this.state.url = 'simulated (demo mode)';
-    this.timer = setInterval(() => this.emit('message', JSON.stringify(this.sample())), 250);
+    this.timer = setInterval(() => this.sample().forEach(m => this.emit('message', JSON.stringify(m))), 250);
   }
   // FOH level drifts ±3 dB and the program's low end breathes, so seats visibly follow it
   sample() {
@@ -108,12 +118,11 @@ class DemoSmaart extends EventEmitter {
     const booth = programCurve(level, t).map((v, i) => r1(v + (THIRDS[i] < 120 ? 2 * Math.sin(t / 7) : 0)));
     const roam = booth.map((v, i) => r1(v - 3 + (THIRDS[i] > 4000 ? -2 : 0) + (Math.random() - 0.5)));
     const dba = (c) => r1(energy(c, 0, 1e9, A_WEIGHT));
-    return {
-      type: 'demo',
-      meters: [{ name: 'Booth', dBA: dba(booth) }, { name: 'Roaming', dBA: dba(roam) }],
-      spectrum: [{ name: 'Booth', bins: THIRDS.map((f, i) => ({ f, db: booth[i] })) },
-                 { name: 'Roaming', bins: THIRDS.map((f, i) => ({ f, db: roam[i] })) }],
-    };
+    // the same frames Smaart v9 streams, run through the same envelope as the live service
+    const splFrame = (c) => ({ metrics: [{ 'SPL A Slow': dba(c) }, { 'SPL A Fast': dba(c) }, { 'LAeq 1': r1(dba(c) - 0.4) }] });
+    const specFrame = (c) => ({ banding: V4.SPECTRUM_BANDING, data: THIRDS.map((f, i) => [f, c[i]]) });
+    return [V4.envelope('booth', 'spl', splFrame(booth)), V4.envelope('booth', 'spectrum', specFrame(booth)),
+            V4.envelope('seat', 'spl', splFrame(roam)), V4.envelope('seat', 'spectrum', specFrame(roam))];
   }
   send() { return this.state.status === 'live'; }
   retryNow() { this.connect(); }

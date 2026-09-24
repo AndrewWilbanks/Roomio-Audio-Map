@@ -74,11 +74,21 @@ Top right, always visible:
 | **Smaart password** / **Smaart error** (red) | Smaart wants a password, or rejected it. Click the pill to fix it — the app won't keep retrying a wrong password |
 | **Manual booth** | No live Smaart; FOH values you typed are being used |
 
-Click the pill for the **Smaart** dialog: connection, **Test**, **Retry now**, and field mapping.
+Click the pill for the **Smaart** dialog: connection, **Test**, **Retry now**, and Smaart sources.
 
-### Map your Smaart fields (once per venue)
+### Smaart v9 is built in
 
-Smaart's API sends JSON messages; you tell the app which numbers are which. Connect, then open **Smaart** → **Live messages**: every number Smaart sends is listed with its path. Pick **Booth · SPL**, **Roaming mic · SPL**, etc. next to the right ones, and use **Booth / Roaming** next to a spectrum to use it for frequency responses and band levels. If Smaart needs commands to send data, paste them into **Poll messages** (one JSON command per line). Press **Save**. The mapping is part of the venue, so it moves with venue profiles.
+Roomio speaks the Smaart v9 API directly, so there's nothing to map. In Smaart:
+
+1. **Options → Preferences → API** — enable the API (port 26000). If you set an API password there, enter the same one in Roomio.
+2. **Calibrate** the FOH measurement mic's input — its SPL meter drives the SPL page (default metric *SPL A Slow*; change it under **SPL metric**).
+3. Start a **spectrum (RTA) measurement** on the FOH mic — it drives the FOH frequency response and the Low / Lo-Mid / HF levels.
+
+With one mic, that's it: FOH uses the first calibrated input and the first running spectrum measurement. With more, pick them in **Smaart → Smaart sources**, and choose a **Roaming mic** input and measurement to use **Capture from Smaart** at each seat. **Test** lists what Smaart is offering. Your choices are part of the venue, so they move with venue profiles.
+
+Smaart Suite does all of the above; Smaart RT/LE have spectrum but no SPL metering, and Smaart SPL has SPL but no spectrum (type or import the missing parts).
+
+**Custom field mapping (advanced)** — for other Smaart versions or unusual setups, switch **Data source** to *Custom*: every number Smaart sends is listed under **Live messages** with its path; assign them to **Booth · SPL**, **Roaming mic · SPL**, etc., and paste any commands Smaart needs into **Poll messages**.
 
 ### Measure the room
 
@@ -183,7 +193,7 @@ Everything lives in your user folder:
 | *"Nothing is listening at localhost:26000"* | Smaart isn't running, or its API is off (Options → Preferences → API) |
 | *"Smaart answered, but not at /api/v4/"* | Pick your Smaart version in the Smaart dialog (v9 = `/api/v4/`, Smaart 8 / Di 2 = `/api/v3/`) |
 | *"Smaart needs its API password"* / *"rejected the API password"* | Enter the same password as in Smaart's API preferences, then **Connect** |
-| Connected, but values show — | The field mapping isn't set: Smaart dialog → Live messages → assign the numbers, **Save** |
+| Connected, but values show — | Smaart has nothing to stream: calibrate the FOH input and start a spectrum measurement. The Smaart dialog's **Streaming now** shows what Roomio is receiving |
 | Works on the Smaart computer but not from another one | Use the Smaart computer's IP as host, and allow port 26000 in its firewall |
 | The auditorium file won't load | Setup lists each problem with its line or seat number — fix those and choose the file again |
 

@@ -11,7 +11,7 @@ const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'ra-e2e-live-'));
 const hall = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/examples/example-hall.auditorium.json'), 'utf8'));
 fs.writeFileSync(path.join(userData, 'venue.json'), JSON.stringify({
   schemaVersion: 1, auditorium: hall, foh: { x: 0, y: 1.5 },
-  smaart: { host: '127.0.0.1', port: 26000, path: '/api/v4/', autoConnect: true, paths: { spl: 'meters.name=Booth.dBA' }, seatPaths: {}, spectrumPath: 'spectrum.name=Booth.bins', seatSpectrumPath: '' },
+  smaart: { host: '127.0.0.1', port: 26000, path: '/api/v4/', autoConnect: true, mode: 'v4' },   // built-in Smaart v9: no mapping
   seatEdits: { deleted: [], added: [], labels: {} }, preferences: {},
 }));
 

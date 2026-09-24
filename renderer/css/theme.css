@@ -98,3 +98,6 @@ td{padding:11px 10px;border-bottom:1px solid var(--line2);font-size:13.5px;}
 
 /* ---- Line-icon defaults (Lucide/Feather match) ---- */
 svg.icon{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;}
+
+/* the hidden attribute always wins over component display rules (.btn etc.) */
+[hidden]{display:none !important;}

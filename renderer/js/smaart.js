@@ -1,10 +1,13 @@
 /* smaart.js — the page's view of the Smaart connection.
    The socket, handshake, password login, keepalive, polling and reconnects all run in the
    main process (main/smaart-service.js). This module turns the raw messages it forwards
-   into booth / roaming-mic values and spectra, using the field mapping from the venue:
-     - "paths"          = where each metric's number lives in Smaart's replies
-     - "spectrum path"  = an RTA/spectrum array, used for the FOH response and band levels
-   The Smaart dialog's live message list lets you set these by clicking. */
+   into booth / roaming-mic values and spectra, using a field mapping:
+     - Smaart v9 mode (default): fixed, from SmaartV4.mappingFor() — the main process turns
+       Smaart's SPL and spectrum streams into {"smaart":{"booth"|"seat":{spl, spectrum}}}
+     - custom mode: the venue's own mapping —
+         "paths"          = where each metric's number lives in Smaart's replies
+         "spectrum path"  = an RTA/spectrum array, used for the FOH response and band levels
+       The Smaart dialog's live message list lets you set these by clicking. */
 (function () {
   const native = RA.native;
   const listeners = {};
@@ -23,6 +26,13 @@
   const log = [];         // [{dir:'in'|'out'|'err', text, t}]
   const STALE_MS = 5000;
   const cfg = () => Store.settings.smaart;
+  // the field mapping in use: built in for Smaart v9, the venue's own for custom mode
+  const mapping = () => {
+    const c = cfg();
+    return c.mode === 'custom'
+      ? { paths: c.paths || {}, seatPaths: c.seatPaths || {}, spectrumPath: c.spectrumPath, seatSpectrumPath: c.seatSpectrumPath }
+      : SmaartV4.mappingFor(c);
+  };
 
   function addLog(dir, text) {
     log.push({ dir, text: String(text).slice(0, 2000), t: Date.now() });
@@ -44,7 +54,7 @@
   }
 
   // settings the main process needs to (re)connect — password stays in the main process
-  const connCfg = () => { const c = cfg(); return { host: c.host, port: c.port, path: c.path, pollMs: c.pollMs, pollMessages: c.pollMessages, autoConnect: c.autoConnect }; };
+  const connCfg = () => { const c = cfg(); return { host: c.host, port: c.port, path: c.path, mode: c.mode, sources: c.sources, pollMs: c.pollMs, pollMessages: c.pollMessages, autoConnect: c.autoConnect }; };
   function connect() { if (native) { addLog('out', 'connecting…'); native.smaartConnect(connCfg()); } }
   function disconnect() { if (native) native.smaartDisconnect(); }
   function retryNow() { if (native) native.smaartRetry(); }
@@ -110,7 +120,7 @@
     try { msg = JSON.parse(raw); } catch (e) { addLog('in', raw); return; }
     addLog('in', raw);
     lastMessage = msg;
-    const c = cfg();
+    const c = mapping();
     let changed = false;
     for (const m of MEASURED) {
       const bv = Number(getPath(msg, c.paths[m.id]));
@@ -176,6 +186,16 @@
     // live third-octave response: which = 'booth' | 'seat'
     liveSpectrum(which) { return fresh(liveSpec[which]) ? liveSpec[which].thirds.slice() : null; },
     liveSpectrumTime(which) { return fresh(liveSpec[which]) ? liveSpec[which].t : 0; },
-    hasSeatSource() { return Object.values(cfg().seatPaths || {}).some(Boolean) || !!cfg().seatSpectrumPath; },
+    hasSeatSource() {
+      const c = cfg();
+      if (c.mode !== 'custom') { const s = (c.sources && c.sources.seat) || {}; return !!(s.spl || s.spectrum); }
+      return Object.values(c.seatPaths || {}).some(Boolean) || !!c.seatSpectrumPath;
+    },
+    hasSeatSpectrum() { const c = cfg(); return c.mode !== 'custom' ? !!(c.sources && c.sources.seat && c.sources.seat.spectrum) : !!c.seatSpectrumPath; },
+    mapping,
+    // Smaart v9: what Smaart offers ({inputs, measurements}) and which streams are open
+    get sources() { return state.sources || null; },
+    get streams() { return state.streams || []; },
+    get server() { return state.server || null; },
   };
 })();

@@ -43,8 +43,13 @@ test('demo: valid venue in the app format, ~40% of seats pre-measured, simulated
   await new Promise(r => setTimeout(r, 600));
   s.stop(true);
   assert.ok(msgs.length >= 2);
-  const m = msgs[0];
-  assert.ok(m.meters.find(x => x.name === 'Booth').dBA > 80, 'booth SPL at meters.name=Booth.dBA');
-  assert.strictEqual(m.spectrum.find(x => x.name === 'Booth').bins.length, 31);
-  assert.strictEqual(venue.smaart.paths.spl, 'meters.name=Booth.dBA');
+  // the demo speaks the same envelopes as the live Smaart v9 streams
+  const V4 = require('../renderer/js/smaart-v4.js');
+  const map = V4.mappingFor(venue.smaart);
+  const at = (o, p) => p.split('.').reduce((c, k) => c == null ? c : c[k], o);
+  assert.strictEqual(venue.smaart.mode, 'v4');
+  assert.ok(msgs.some(m => at(m, map.paths.spl) > 80), 'booth SPL on the built-in path');
+  assert.ok(msgs.some(m => at(m, map.seatPaths.spl) > 70), 'roaming SPL on the built-in path');
+  assert.strictEqual(msgs.find(m => at(m, map.spectrumPath)).smaart.booth.spectrum.length, 31);
+  assert.strictEqual(s.state.streams.length, 4);
 });

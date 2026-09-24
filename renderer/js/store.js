@@ -8,7 +8,14 @@
   // Connection values (host/port/path) come only from the venue — they are deliberately NOT
   // defaulted here; the wizard pre-fills them from SMAART_DEFAULTS and saves them (SANDBOX.md).
   const defaultSmaart = () => ({
-    autoConnect: true, pollMs: 500,
+    autoConnect: true,
+    mode: 'v4',                    // 'v4' = Smaart v9 built in (smaart-v4.js) | 'custom' = poll messages + field mapping
+    splMetric: 'SPL A Slow',       // v4: which Smaart SPL metric drives the SPL page
+    sources: {                     // v4: which Smaart input/measurement feeds FOH and the roaming mic
+      booth: { spl: null, spectrum: null },   // null = first available
+      seat: { spl: null, spectrum: null },    // null = none
+    },
+    pollMs: 500,
     pollMessages: '',              // one JSON command per line, sent every poll
     paths: {},                     // booth metric -> JSON path in Smaart messages
     seatPaths: {},                 // roaming-mic metric -> JSON path (optional)
@@ -32,6 +39,14 @@
       else base[k] = over[k];
     }
     return base;
+  }
+
+  // venues saved before the built-in Smaart v9 mode keep their hand-made field mapping
+  function migrateSmaart(sm) {
+    if (!sm || sm.mode) return sm;
+    const custom = String(sm.pollMessages || '').trim() || sm.spectrumPath || sm.seatSpectrumPath ||
+      Object.values(sm.paths || {}).some(Boolean) || Object.values(sm.seatPaths || {}).some(Boolean);
+    return { ...sm, mode: custom ? 'custom' : 'v4' };
   }
 
   function uid() {
@@ -64,7 +79,7 @@
     settings = {
       booth: foh ? { x: foh.x, y: foh.y * room.flip } : { ...room.suggestedFoh },
       manualBooth: prefs.manualBooth,
-      smaart: merge(defaultSmaart(), venue.smaart),
+      smaart: merge(defaultSmaart(), migrateSmaart(venue.smaart)),
       seatEdits: merge({ deleted: [], added: [], labels: {} }, venue.seatEdits),
       ui: prefs.ui,
     };

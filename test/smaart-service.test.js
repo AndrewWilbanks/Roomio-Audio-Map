@@ -33,7 +33,7 @@ test('connects, handshakes, forwards data but not keepalive replies', async () =
   const svc = track(new SmaartService(() => ''));
   const messages = [];
   svc.on('message', (m) => messages.push(JSON.parse(m)));
-  svc.connect(cfg(27101, { pollMessages: '{"action":"get","target":"x"}', pollMs: 200 }));
+  svc.connect(cfg(27101, { mode: 'custom', pollMessages: '{"action":"get","target":"x"}', pollMs: 200 }));
   assert.ok(await waitFor(() => svc.state.status === 'live'), 'goes live');
   assert.ok(await waitFor(() => s.seen.some(j => j.target === 'x')), 'sends poll messages');
   await new Promise(r => setTimeout(r, 1300));                          // at least one keepalive round-trip
@@ -49,7 +49,7 @@ test('logs in with the stored password; password never appears in the log', asyn
   const log = [], messages = [];
   svc.on('log', (l) => log.push(l.text));
   svc.on('message', (m) => messages.push(m));
-  svc.connect(cfg(27102));
+  svc.connect(cfg(27102, { mode: 'custom' }));
   assert.ok(await waitFor(() => messages.some(m => m.includes('91.5'))), 'data after login');
   assert.strictEqual(svc.state.status, 'live');
   assert.ok(!log.join(' ').includes('pw1'), 'password not logged');

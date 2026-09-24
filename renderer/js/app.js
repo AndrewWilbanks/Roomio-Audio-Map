@@ -657,7 +657,7 @@
   function captureResponse() {
     const seatT = Smaart.liveSpectrum('seat'), boothT = Smaart.liveSpectrum('booth');
     if (!seatT || !boothT) {
-      toast(!S().smaart.seatSpectrumPath ? 'Set the roaming-mic spectrum path in the Smaart dialog first' : 'No live spectra from Smaart right now');
+      toast(!Smaart.hasSeatSpectrum() ? 'Choose the roaming-mic spectrum in the Smaart dialog first' : 'No live spectra from Smaart right now');
       return;
     }
     saveSpectrum(selectedId, seatT, boothT, 'smaart', $('#fr-bands') ? $('#fr-bands').checked : true);
@@ -832,30 +832,51 @@
     const opts = ['<option value="">— assign —</option>']
       .concat(MEASURED.map(x => `<option value="b:${x.id}">Booth · ${esc(x.label)}</option>`))
       .concat(MEASURED.map(x => `<option value="s:${x.id}">Roaming mic · ${esc(x.label)}</option>`)).join('');
+    // working copy of the Smaart v9 source choices (saved on Save / Connect)
+    const draft = JSON.parse(JSON.stringify(c.sources || { booth: {}, seat: {} }));
+    const metrics = [...new Set([c.splMetric || SmaartV4.DEFAULT_SPL_METRIC, ...SmaartV4.SPL_METRICS])];
     openModal('Smaart connection', `
       <div class="note"><b>In Smaart:</b> Options → Preferences → API → enable the API (default port 26000). Use host <b>localhost</b> when Roomio runs on the Smaart computer, or that computer's IP address otherwise.
-        Command formats come from the free Smaart API SDK (support@rationalacoustics.com); paste them below and map the fields using the live message list.</div>
+        Roomio speaks the Smaart v9 API directly: it reads SPL from a <b>calibrated input</b> and the frequency response from a running <b>spectrum (RTA) measurement</b>.</div>
       <div class="form-row three"><div><label>Smaart computer (IP or hostname)</label><input id="sm-host" value="${esc(c.host || '')}" placeholder="e.g. ${esc(SMAART_DEFAULTS.host)}"></div>
         <div><label>Port</label><input id="sm-port" type="number" min="1" max="65535" value="${c.port || ''}" placeholder="${SMAART_DEFAULTS.port}"></div>
         <div><label>API path</label><select id="sm-path">
           ${[['/api/v4/', 'Smaart v9 (/api/v4/)'], ['/api/v3/', 'Smaart 8 / Di 2 (/api/v3/)'], ['', 'None']].map(([v, l]) => `<option value="${v}" ${(c.path == null ? SMAART_DEFAULTS.path : c.path) === v ? 'selected' : ''}>${l}</option>`).join('')}
         </select></div></div>
       <div class="form-row"><div><label>API password <span class="muted">(only if set in Smaart — stored encrypted on this computer)</span></label><input id="sm-pw" type="password" autocomplete="off" placeholder="not set"></div>
-        <div><label>Poll every (ms)</label><input id="sm-poll" type="number" min="100" step="50" value="${c.pollMs}"></div></div>
+        <div><label>Data source</label><select id="sm-mode">
+          <option value="v4" ${c.mode !== 'custom' ? 'selected' : ''}>Smaart v9 — built in (recommended)</option>
+          <option value="custom" ${c.mode === 'custom' ? 'selected' : ''}>Custom field mapping (advanced)</option>
+        </select></div></div>
       <label class="check"><input type="checkbox" id="sm-auto" ${c.autoConnect ? 'checked' : ''}> Connect automatically when the app opens</label>
-      <label>Poll messages <span class="muted">(JSON sent every poll, one per line — leave empty if Smaart streams on its own)</span></label>
-      <textarea id="sm-msgs" placeholder='{"...": "command from the Smaart API SDK"}'>${esc(c.pollMessages)}</textarea>
 
-      <div class="section-h">Field mapping</div>
-      <p class="hint">Paths into Smaart's JSON replies, e.g. <code>meters.name=Booth.dBA</code> or <code>data[0].level</code>. Band metrics can also come from a spectrum.</p>
-      <div class="entry-grid" style="grid-template-columns:110px 1fr 1fr">
-        <div class="h">Metric</div><div class="h">Booth path</div><div class="h">Roaming mic path</div>
-        ${MEASURED.map(x => `<div class="m">${esc(x.short)}</div>
-          <input data-bp="${x.id}" value="${esc(c.paths[x.id] || '')}" style="text-align:left;font-size:12.5px">
-          <input data-sp="${x.id}" value="${esc(c.seatPaths[x.id] || '')}" style="text-align:left;font-size:12.5px">`).join('')}
+      <div id="sm-v4">
+        <div class="section-h">Smaart sources</div>
+        <p class="hint">Filled in from Smaart once connected. FOH uses the first available input and measurement unless you pick one; the roaming mic is optional (for <b>Capture from Smaart</b>).</p>
+        <div class="entry-grid" style="grid-template-columns:110px 1fr 1fr">
+          <div class="h"></div><div class="h">SPL — calibrated input</div><div class="h">Frequency response — spectrum measurement</div>
+          <div class="m">FOH</div><select data-src="booth.spl"></select><select data-src="booth.spectrum"></select>
+          <div class="m">Roaming mic</div><select data-src="seat.spl"></select><select data-src="seat.spectrum"></select>
+        </div>
+        <div class="form-row"><div><label>SPL metric</label><select id="sm-metric">${metrics.map(m => `<option ${m === (c.splMetric || SmaartV4.DEFAULT_SPL_METRIC) ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></div>
+          <div><label>Streaming now</label><div id="sm-streams" class="small" style="padding-top:6px"></div></div></div>
       </div>
-      <div class="form-row"><div><label>Booth spectrum path <span class="muted">(FOH response + band levels)</span></label><input id="sm-spec" value="${esc(c.spectrumPath)}"></div>
-        <div><label>Roaming mic spectrum path <span class="muted">(seat response)</span></label><input id="sm-seatspec" value="${esc(c.seatSpectrumPath || '')}"></div></div>
+
+      <div id="sm-custom">
+        <div class="section-h">Custom field mapping</div>
+        <div class="form-row"><div><label>Poll every (ms)</label><input id="sm-poll" type="number" min="100" step="50" value="${c.pollMs}"></div><div></div></div>
+        <label>Poll messages <span class="muted">(JSON sent every poll, one per line — leave empty if Smaart streams on its own)</span></label>
+        <textarea id="sm-msgs" placeholder='{"action":"get","target":"…"}'>${esc(c.pollMessages)}</textarea>
+        <p class="hint">Paths into Smaart's JSON replies, e.g. <code>meters.name=Booth.dBA</code> or <code>data[0].level</code>. Band metrics can also come from a spectrum.</p>
+        <div class="entry-grid" style="grid-template-columns:110px 1fr 1fr">
+          <div class="h">Metric</div><div class="h">Booth path</div><div class="h">Roaming mic path</div>
+          ${MEASURED.map(x => `<div class="m">${esc(x.short)}</div>
+            <input data-bp="${x.id}" value="${esc(c.paths[x.id] || '')}" style="text-align:left;font-size:12.5px">
+            <input data-sp="${x.id}" value="${esc(c.seatPaths[x.id] || '')}" style="text-align:left;font-size:12.5px">`).join('')}
+        </div>
+        <div class="form-row"><div><label>Booth spectrum path <span class="muted">(FOH response + band levels)</span></label><input id="sm-spec" value="${esc(c.spectrumPath)}"></div>
+          <div><label>Roaming mic spectrum path <span class="muted">(seat response)</span></label><input id="sm-seatspec" value="${esc(c.seatSpectrumPath || '')}"></div></div>
+      </div>
       <label>Smoothing (0 = none, 0.9 = heavy)</label><input id="sm-smooth" type="number" min="0" max="0.95" step="0.05" value="${c.smoothing}" style="max-width:160px">
 
       <div class="section-h">Live messages</div>
@@ -868,6 +889,32 @@
        <button class="btn btn-secondary btn-sm" id="sm-conn"></button>
        <button class="btn btn-primary btn-sm" id="sm-save">Save</button>`, 'wide');
 
+    const showMode = () => { const v4 = $('#sm-mode').value !== 'custom'; $('#sm-v4').hidden = !v4; $('#sm-custom').hidden = v4; };
+    $('#sm-mode').onchange = showMode; showMode();
+    // source pickers: options from what Smaart reports; a saved choice that isn't running stays listed
+    const renderSources = () => {
+      const src = Smaart.sources || { inputs: [], measurements: [] };
+      document.querySelectorAll('[data-src]').forEach(sel => {
+        if (sel === document.activeElement) return;
+        const [role, kind] = sel.dataset.src.split('.');
+        const list = kind === 'spl' ? src.inputs.map(i => ({ device: i.device, channel: i.channel })) : src.measurements.map(m => ({ measurement: m.measurement }));
+        const label = (o) => kind === 'spl' ? SmaartV4.splKey(o) : o.measurement;
+        const cur = (draft[role] || {})[kind] || null;
+        const same = (o) => cur && label(o) === label(cur);
+        if (cur && !list.some(same)) list.unshift({ ...cur, missing: true });
+        const none = role === 'booth' ? (Smaart.sources ? 'First available' : 'First available (connect to list)') : 'None';
+        sel.innerHTML = `<option value="">${none}</option>` + list.map(o =>
+          `<option value="${esc(JSON.stringify({ ...o, missing: undefined }))}" ${same(o) ? 'selected' : ''}>${esc(label(o))}${o.missing ? ' — not running' : ''}</option>`).join('');
+        sel.onchange = () => { draft[role] = draft[role] || {}; draft[role][kind] = sel.value ? JSON.parse(sel.value) : null; };
+      });
+      const el = $('#sm-streams'); if (!el) return;
+      const st = Smaart.streams;
+      el.innerHTML = Smaart.status !== 'live' ? '<span class="muted">Not connected</span>'
+        : !st.length ? '<span class="muted">Nothing yet — calibrate an input or start a spectrum measurement in Smaart</span>'
+        : st.map(x => `<div>${x.open ? '●' : '○'} ${x.kind === 'spl' ? 'SPL' : 'Spectrum'} · ${esc(x.label)} → ${x.roles.map(r => r === 'booth' ? 'FOH' : 'roaming').join(' + ')}</div>`).join('');
+    };
+    renderSources();
+
     const collect = () => {
       c.host = $('#sm-host').value.trim();                 // blank stays blank -> clear error, no silent default
       c.port = parseInt($('#sm-port').value, 10) || null;
@@ -876,6 +923,9 @@
       if (pw.dataset.changed) { Smaart.setPassword(pw.value); delete pw.dataset.changed; }
       c.pollMs = Math.max(100, +$('#sm-poll').value || 500);
       c.autoConnect = $('#sm-auto').checked;
+      c.mode = $('#sm-mode').value === 'custom' ? 'custom' : 'v4';
+      c.splMetric = $('#sm-metric').value;
+      c.sources = JSON.parse(JSON.stringify(draft));
       c.pollMessages = $('#sm-msgs').value;
       c.spectrumPath = $('#sm-spec').value.trim();
       c.seatSpectrumPath = $('#sm-seatspec').value.trim();
@@ -914,10 +964,11 @@
         if (Array.isArray(o)) o.slice(0, 16).forEach((e, i) => walk(e, `${p}[${i}]`));
         else Object.keys(o).forEach(k => walk(o[k], p ? `${p}.${k}` : k));
       })(msg, '');
+      const custom = $('#sm-mode').value === 'custom';       // built-in mode: values shown, mapping is fixed
       el.innerHTML = spec.map(([p, n]) => `<div class="leaf"><code title="${esc(p)}">${esc(p || '(root)')}</code><span class="muted">${n} bins</span>
-          <span class="chips"><button class="btn btn-secondary btn-sm" data-spec="${esc(p)}">Booth</button><button class="btn btn-secondary btn-sm" data-seatspec="${esc(p)}">Roaming</button></span></div>`).join('') +
+          ${custom ? `<span class="chips"><button class="btn btn-secondary btn-sm" data-spec="${esc(p)}">Booth</button><button class="btn btn-secondary btn-sm" data-seatspec="${esc(p)}">Roaming</button></span>` : ''}</div>`).join('') +
         Smaart.leaves(msg).slice(0, 150).map(([p, v]) => `<div class="leaf"><code title="${esc(p)}">${esc(p)}</code><b>${fmt(v, 2)}</b>
-          <select data-leaf="${esc(p)}">${opts}</select></div>`).join('');
+          ${custom ? `<select data-leaf="${esc(p)}">${opts}</select>` : ''}</div>`).join('');
       el.querySelectorAll('[data-spec]').forEach(b => b.onclick = () => { $('#sm-spec').value = b.dataset.spec; toast('Booth spectrum path set — Save to apply'); });
       el.querySelectorAll('[data-seatspec]').forEach(b => b.onclick = () => { $('#sm-seatspec').value = b.dataset.seatspec; toast('Roaming spectrum path set — Save to apply'); });
       el.querySelectorAll('[data-leaf]').forEach(sel => sel.onchange = () => {
@@ -932,7 +983,7 @@
     renderConn(); renderLog(); renderLeaves();
     const unsub = [];
     const sub = (ev, fn) => { Smaart.on(ev, fn); unsub.push(fn); };
-    sub('status', renderConn); sub('log', renderLog); sub('message', renderLeaves);
+    sub('status', renderConn); sub('status', renderSources); sub('log', renderLog); sub('message', renderLeaves);
     modalCleanup = () => { unsub.forEach(fn => fn.dead = true); };
 
     $('#sm-conn').onclick = () => {
@@ -944,7 +995,7 @@
       collect();
       const pw = $('#sm-pw').value;
       $('#sm-state').textContent = 'Testing…';
-      const r = RA.native ? await RA.native.smaartTest({ host: c.host, port: c.port, path: c.path }, pw ? pw : undefined) : { ok: false, message: 'Test connection works in the desktop app.' };
+      const r = RA.native ? await RA.native.smaartTest({ host: c.host, port: c.port, path: c.path, mode: c.mode }, pw ? pw : undefined) : { ok: false, message: 'Test connection works in the desktop app.' };
       $('#sm-state').textContent = (r.ok ? '✓ ' : '✕ ') + r.message;
     };
     $('#sm-save').onclick = () => { collect(); Smaart.restartPolling(); toast('Smaart settings saved'); render(); };

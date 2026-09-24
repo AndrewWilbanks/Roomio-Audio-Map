@@ -39,6 +39,10 @@ sandbox-safe alternative before building it.
 - Smaart host / port / path / password come **only** from `venue.json` (password: encrypted
   `credentials.json`). `renderer/js/smaart-defaults.js` only pre-fills the setup wizard.
   A missing host or port is a visible error, never a silent default.
+- Smaart v9 stream sockets (`renderer/js/smaart-v4.js`) are further outgoing connections to the
+  same host/port; their endpoint paths come from Smaart's own replies, never from code.
+- No Smaart auto-discovery: the SDK's discovery has Smaart answer over a TCP connection **to**
+  the client, which needs a listening socket (a server) — not allowed. The host is typed instead.
 - Failures (refused, timeout, unreachable, macOS Local Network permission denied) show a
   plain-language message in the status pill; the app always launches and setup / venue
   editing / demo mode work with no Smaart at all.
