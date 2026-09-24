@@ -1,7 +1,7 @@
 {
   "name": "roomio",
   "productName": "Roomio",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Seat-by-seat SPL, low-end and frequency-response maps of an auditorium, referenced live to Smaart at FOH.",
   "main": "main/main.js",
   "author": "Roomio",
