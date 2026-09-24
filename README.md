@@ -21,7 +21,7 @@ See what every seat in your room hears. Roomio draws your auditorium seat by sea
 ### Windows 10 / 11
 
 1. Download **`Roomio-<version>-win-setup.exe`** from the [Releases page](https://github.com/AndrewWilbanks/Roomio-Audio-Map/releases/latest).
-2. Run it and follow the installer. You can choose the install folder; a Start-menu and desktop shortcut are added.
+2. Run it and follow the installer. It installs for your user account only — no administrator rights needed — and adds a Start-menu and desktop shortcut.
    *If Windows SmartScreen appears:* **More info** → **Run anyway**.
 
 ### Updates
@@ -51,6 +51,8 @@ Roomio reads Smaart through Smaart's built-in API (Smaart v9, or Smaart 8.3+ / D
 ## 3. First run: set up your venue
 
 The first time you open the app (or after **Reset Venue**) a four-step setup appears.
+
+**Just looking?** Press **Try the demo** on the first step: a sample hall with pre-measured seats and simulated Smaart data, so you can see everything working without Smaart. It never touches your own venue — leave it with **Exit demo**.
 
 1. **Auditorium** — drop in your auditorium file (`.json`) or a seat list (`.csv`). The app checks it and either shows a summary (seats, sections, size) or lists exactly what to fix, with line numbers. No file yet? Try **Use the example hall**, or **Import a venue profile…** if you exported one from another computer. See [the file format](#5-the-auditorium-file) below.
 2. **FOH position** — click the map where your FOH measurement mic is, or type its x / y (and optional height) in your file's units. If your file has no stage, you can place it here too — seats then face it.
@@ -170,7 +172,7 @@ Everything lives in your user folder:
 - **Import Venue Profile…** — replaces the current venue (the current one goes to `backups/`).
 - **New Venue…** — run setup again for another room; the current venue goes to `backups/`.
 - **Reset Venue…** — clear this venue and start setup again (also backed up first).
-- **Show Data Folder** — opens the folder above.
+- **Back Up All Data…** — saves the venue and every measurement in one file, wherever you choose.
 
 ---
 
@@ -198,4 +200,6 @@ npm run dist:mac          # dist/Roomio-<v>-mac-universal.dmg + .zip
 npm run dist:win          # dist/Roomio-<v>-win-setup.exe
 ```
 
-`RA_USER_DATA=/tmp/somewhere npm start` runs against a separate data folder. Releases are built and published to GitHub Releases by `.github/workflows/release.yml` when a `v*` tag is pushed — see `docs/RELEASING.md`.
+`RA_USER_DATA=<folder> npm start` runs against a separate data folder (dev / direct builds only).
+**Read [`SANDBOX.md`](SANDBOX.md) before changing anything** — Roomio must stay buildable for the Mac App Store and Microsoft Store.
+After editing this README, run `node dev/build-help.js` (it becomes the in-app Help). Releases are built and published to GitHub Releases by `.github/workflows/release.yml` when a `v*` tag is pushed — see `docs/RELEASING.md`.

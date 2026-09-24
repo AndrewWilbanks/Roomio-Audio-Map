@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<!-- Generated from README.md by dev/build-help.js — do not edit by hand. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Roomio Help</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; script-src 'none'">
+<link rel="stylesheet" href="css/theme.css">
+<style>
+  body{max-width:820px;margin:0 auto;padding:28px 32px 60px;font-size:14.5px;line-height:1.6;background:var(--paper);}
+  h1{font-size:30px;margin-top:0} h2{font-size:22px;margin-top:34px} h3{font-size:17px;margin-top:22px}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--surface);border:1px solid var(--line2);border-radius:5px;padding:1px 5px}
+  pre{background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;overflow:auto}
+  pre code{border:none;padding:0;background:none}
+  table{margin:10px 0 16px;font-size:13px} th,td{vertical-align:top}
+  hr{border:none;border-top:1px solid var(--line2);margin:26px 0}
+  .ref{font-weight:700}
+</style>
+</head>
+<body>
+<h1 id="roomio">Roomio</h1>
+<p>See what every seat in your room hears. Roomio draws your auditorium seat by seat and colours each seat by level — overall SPL, low-end impact, low-mids, high frequencies, or how far it is from what you hear at FOH. You measure each seat once; after that every seat follows the live reading from <b>Smaart</b> at the mix position.</p>
+<ul><li>One map per measurement, switched from the dropdown at the top</li><li>Each seat's frequency response against FOH, plus the room average</li><li>Seats track the live FOH level <i>and</i> the live FOH spectrum</li><li>Works offline; everything stays on your computer</li></ul>
+<hr>
+<h2 id="1-install">1. Install</h2>
+<h3 id="macos-apple-silicon-and-intel">macOS (Apple silicon and Intel)</h3>
+<ol><li>Download <b><code>Roomio-&lt;version&gt;-mac-universal.dmg</code></b> from the <a href="https://github.com/AndrewWilbanks/Roomio-Audio-Map/releases/latest" target="_blank" rel="noopener">Releases page</a>.</li><li>Open the <code>.dmg</code> and drag <b>Roomio</b> into <b>Applications</b>.</li><li>Open it from Applications. <i>If macOS says it "can't be opened because Apple cannot check it":</i> right-click the app → <b>Open</b> → <b>Open</b>. You only need to do this once. (Builds that are signed and notarized open normally.)</li></ol>
+<h3 id="windows-10-11">Windows 10 / 11</h3>
+<ol><li>Download <b><code>Roomio-&lt;version&gt;-win-setup.exe</code></b> from the <a href="https://github.com/AndrewWilbanks/Roomio-Audio-Map/releases/latest" target="_blank" rel="noopener">Releases page</a>.</li><li>Run it and follow the installer. It installs for your user account only — no administrator rights needed — and adds a Start-menu and desktop shortcut. <i>If Windows SmartScreen appears:</i> <b>More info</b> → <b>Run anyway</b>.</li></ol>
+<h3 id="updates">Updates</h3>
+<p>The app checks for new versions on launch and every few hours, downloads them in the background, and asks to restart when one is ready (or installs it the next time you quit). You can check any time: <b>Roomio → Check for Updates…</b> (macOS) or <b>Help → Check for Updates…</b> (Windows).</p>
+<hr>
+<h2 id="2-turn-on-smaarts-api">2. Turn on Smaart's API</h2>
+<p>Roomio reads Smaart through Smaart's built-in API (Smaart v9, or Smaart 8.3+ / Di 2).</p>
+<ol><li>In Smaart: <b>Options → Preferences → API</b>.</li><li>Turn the API <b>on</b>. The default port is <b>26000</b> — leave it unless you have a reason to change it.</li><li><i>(Optional)</i> Set an API password. If you do, enter the same password in Roomio.</li><li>Leave Smaart running.</li></ol>
+<p><b>Same computer or different?</b></p>
+<table><thead><tr><th>Roomio runs on…</th><th>Smaart host to enter</th></tr></thead><tbody><tr><td>the Smaart computer</td><td><code>localhost</code></td></tr><tr><td>another computer on the same network</td><td>the Smaart computer's IP address (e.g. <code>192.168.1.50</code>) — and allow port 26000 through that computer's firewall</td></tr></tbody></table>
+<hr>
+<h2 id="3-first-run-set-up-your-venue">3. First run: set up your venue</h2>
+<p>The first time you open the app (or after <b>Reset Venue</b>) a four-step setup appears.</p>
+<p><b>Just looking?</b> Press <b>Try the demo</b> on the first step: a sample hall with pre-measured seats and simulated Smaart data, so you can see everything working without Smaart. It never touches your own venue — leave it with <b>Exit demo</b>.</p>
+<ol><li><b>Auditorium</b> — drop in your auditorium file (<code>.json</code>) or a seat list (<code>.csv</code>). The app checks it and either shows a summary (seats, sections, size) or lists exactly what to fix, with line numbers. No file yet? Try <b>Use the example hall</b>, or <b>Import a venue profile…</b> if you exported one from another computer. See <a href="#5-the-auditorium-file">the file format</a> below.</li><li><b>FOH position</b> — click the map where your FOH measurement mic is, or type its x / y (and optional height) in your file's units. If your file has no stage, you can place it here too — seats then face it.</li><li><b>Smaart</b> — host, port, Smaart version, and the API password if you set one. Press <b>Test connection</b>; you'll get a plain answer such as <i>"Connected and logged in to Smaart"</i> or <i>"Nothing is listening at localhost:26000 — start Smaart and enable its API."</i> You can skip this and connect later.</li><li><b>Save</b> — the venue opens.</li></ol>
+<hr>
+<h2 id="4-using-it">4. Using it</h2>
+<h3 id="the-status-pill">The status pill</h3>
+<p>Top right, always visible:</p>
+<table><thead><tr><th>Pill</th><th>Meaning</th></tr></thead><tbody><tr><td><b>Smaart live</b> (green)</td><td>Connected; FOH values are live</td></tr><tr><td><b>Connecting / Retry in 5s</b> (amber)</td><td>Smaart isn't answering; the app retries automatically (1 s, 2 s, 4 s … up to every 15 s). Hover for the reason</td></tr><tr><td><b>Smaart password</b> / <b>Smaart error</b> (red)</td><td>Smaart wants a password, or rejected it. Click the pill to fix it — the app won't keep retrying a wrong password</td></tr><tr><td><b>Manual booth</b></td><td>No live Smaart; FOH values you typed are being used</td></tr></tbody></table>
+<p>Click the pill for the <b>Smaart</b> dialog: connection, <b>Test</b>, <b>Retry now</b>, and field mapping.</p>
+<h3 id="map-your-smaart-fields-once-per-venue">Map your Smaart fields (once per venue)</h3>
+<p>Smaart's API sends JSON messages; you tell the app which numbers are which. Connect, then open <b>Smaart</b> → <b>Live messages</b>: every number Smaart sends is listed with its path. Pick <b>Booth · SPL</b>, <b>Roaming mic · SPL</b>, etc. next to the right ones, and use <b>Booth / Roaming</b> next to a spectrum to use it for frequency responses and band levels. If Smaart needs commands to send data, paste them into <b>Poll messages</b> (one JSON command per line). Press <b>Save</b>. The mapping is part of the venue, so it moves with venue profiles.</p>
+<h3 id="measure-the-room">Measure the room</h3>
+<ol><li>Pick a seat (or <b>Start walk-through</b> in Room summary).</li><li>With a roaming measurement mic at seated ear height, press <b>Capture response</b> — this saves the seat's frequency response against FOH and its Low / Lo-Mid / HF levels in one go. Or type the seat and booth readings and <b>Save readings</b>.</li><li>The app jumps to the next seat. <b>Next unmeasured ›</b> skips to the next seat that's missing data; the progress bar counts toward every seat.</li></ol>
+<p>Each seat keeps its readings and response; the map then shows <i>live FOH + that seat's difference</i>, adjusted for how the program's spectrum has changed since you measured.</p>
+<h3 id="data">Data</h3>
+<p><b>Data</b> exports and imports readings as CSV. Everything is saved automatically.</p>
+<hr>
+<h2 id="5-the-auditorium-file">5. The auditorium file</h2>
+<p>Two ways to describe your room. Any consistent unit works (feet, metres, drawing units) — the app sizes seats from the spacing between them.</p>
+<h3 id="json-auditoriumjson">JSON (<code>*.auditorium.json</code>)</h3>
+<pre><code>{
+  "format": "roomio-auditorium",
+  "schemaVersion": 1,
+  "name": "Main Auditorium",
+  "units": "ft",
+  "yAxis": "down",
+  "stage": { "x": 0, "y": 0, "label": "Stage" },
+  "foh":   { "x": 0, "y": 62 },
+  "seats": [
+    { "id": "A-1-1", "section": "A", "row": 1, "seat": 1, "x": -12.5, "y": 20 },
+    { "id": "A-1-2", "section": "A", "row": 1, "seat": 2, "x": -10.5, "y": 20, "z": 0.5 }
+  ]
+}</code></pre>
+<table><thead><tr><th>Field</th><th>Required</th><th>Meaning</th></tr></thead><tbody><tr><td><code>name</code></td><td><b>yes</b></td><td>Room name shown in the app</td></tr><tr><td><code>seats[]</code></td><td><b>yes</b></td><td>1 – 20,000 seats</td></tr><tr><td><code>seats[].id</code></td><td><b>yes</b></td><td>Unique label, e.g. <code>"A-12-4"</code>. Readings are stored against it — keep it stable</td></tr><tr><td><code>seats[].x</code>, <code>seats[].y</code></td><td><b>yes</b></td><td>Position</td></tr><tr><td><code>seats[].z</code></td><td>no</td><td>Height (balcony, rake)</td></tr><tr><td><code>seats[].section</code> / <code>.row</code> / <code>.seat</code></td><td>no</td><td>Labels and walk-through order (default section: <code>Main</code>)</td></tr><tr><td><code>seats[].rotation</code></td><td>no</td><td>Degrees, 0 = facing up the screen. Default: facing the stage</td></tr><tr><td><code>units</code></td><td>no</td><td><code>px</code> (default), <code>ft</code>, <code>in</code>, <code>m</code>, <code>cm</code>, <code>mm</code></td></tr><tr><td><code>yAxis</code></td><td>no</td><td><code>down</code> (default — screen/SVG style) or <code>up</code> (CAD style)</td></tr><tr><td><code>stage</code></td><td>no</td><td>Centre front of the stage; seats face it</td></tr><tr><td><code>foh</code></td><td>no</td><td>Suggested FOH position (you can move it in setup)</td></tr><tr><td><code>background</code></td><td>no</td><td>A floor-plan image under the seats: <code>{ "image": "data:image/svg+xml;base64,…", "x", "y", "width", "height", "opacity" }</code> (SVG, PNG, JPEG or WebP, up to 25 MB)</td></tr></tbody></table>
+<p>The complete JSON Schema is in <span class="ref"><code>docs/auditorium.schema.json</code></span>; an example is in <span class="ref"><code>docs/examples/</code></span>.</p>
+<h3 id="csv-seatxyz">CSV (<code>seat,x,y,z</code>)</h3>
+<pre><code>seat,x,y,z
+A-1-1,-12.5,20,0
+A-1-2,-10.5,20,0
+B-2-7,4,24.5,0.3</code></pre>
+<ul><li>The header line is optional. <code>z</code> can be empty.</li><li>Seat labels are split on <code>-</code>, space, <code>_</code>, <code>.</code> or <code>/</code>: <code>A-12-4</code> → section <b>A</b>, row <b>12</b>, seat <b>4</b>; <code>12-4</code> → row 12, seat 4.</li><li>Or add columns named <code>section</code>, <code>row</code>, <code>number</code>.</li><li>Commas, semicolons or tabs all work. Lines starting with <code>#</code> are ignored.</li><li>In setup you choose the venue name, units, and whether Y goes up (CAD — the default for CSV) or down.</li></ul>
+<p>Exporting from CAD: most CAD tools can export block insertion points (seat blocks) as CSV — keep the seat label, X, Y and Z columns.</p>
+<hr>
+<h2 id="6-venues-profiles-and-your-data">6. Venues, profiles and your data</h2>
+<p>Everything lives in your user folder:</p>
+<ul><li>macOS: <code>~/Library/Application Support/Roomio/</code></li><li>Windows: <code>%APPDATA%\Roomio\</code></li></ul>
+<table><thead><tr><th>File</th><th>What's in it</th></tr></thead><tbody><tr><td><code>venue.json</code></td><td>The auditorium, FOH position, Smaart settings and field mapping, seat edits (<code>schemaVersion</code> 1)</td></tr><tr><td><code>measurements.json</code></td><td>Seat readings and frequency responses</td></tr><tr><td><code>credentials.json</code></td><td>The Smaart API password, encrypted with your system keychain</td></tr><tr><td><code>backups/</code></td><td>Venues replaced by New Venue, Reset or Import</td></tr></tbody></table>
+<p><b>Settings</b> (⌘, / Ctrl+,) and the <b>Venue</b> (macOS) / <b>File</b> (Windows) menu:</p>
+<ul><li><b>Export Venue Profile…</b> — one <code>.roomio.json</code> file with the venue, its Smaart setup and (optionally) its measurements. Use it to move to another computer or keep a backup. The Smaart password is never included.</li><li><b>Import Venue Profile…</b> — replaces the current venue (the current one goes to <code>backups/</code>).</li><li><b>New Venue…</b> — run setup again for another room; the current venue goes to <code>backups/</code>.</li><li><b>Reset Venue…</b> — clear this venue and start setup again (also backed up first).</li><li><b>Back Up All Data…</b> — saves the venue and every measurement in one file, wherever you choose.</li></ul>
+<hr>
+<h2 id="7-troubleshooting">7. Troubleshooting</h2>
+<table><thead><tr><th>Problem</th><th>Try</th></tr></thead><tbody><tr><td><i>"Nothing is listening at localhost:26000"</i></td><td>Smaart isn't running, or its API is off (Options → Preferences → API)</td></tr><tr><td><i>"Smaart answered, but not at /api/v4/"</i></td><td>Pick your Smaart version in the Smaart dialog (v9 = <code>/api/v4/</code>, Smaart 8 / Di 2 = <code>/api/v3/</code>)</td></tr><tr><td><i>"Smaart needs its API password"</i> / <i>"rejected the API password"</i></td><td>Enter the same password as in Smaart's API preferences, then <b>Connect</b></td></tr><tr><td>Connected, but values show —</td><td>The field mapping isn't set: Smaart dialog → Live messages → assign the numbers, <b>Save</b></td></tr><tr><td>Works on the Smaart computer but not from another one</td><td>Use the Smaart computer's IP as host, and allow port 26000 in its firewall</td></tr><tr><td>The auditorium file won't load</td><td>Setup lists each problem with its line or seat number — fix those and choose the file again</td></tr></tbody></table>
+<hr>
+</body>
+</html>

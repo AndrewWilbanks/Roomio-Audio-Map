@@ -31,12 +31,12 @@
         <div class="card-header"><div><div class="eyebrow">Step 1 of 4</div><h2 class="card-title">Import your auditorium</h2></div></div>
         <div class="card-body">
           <p class="hint">An auditorium file lists every seat with its position. Use a <b>.json</b> auditorium file, or a <b>.csv</b> with columns <code>seat,x,y,z</code>.</p>
-          <label class="drop" id="drop">
-            <input type="file" id="file" accept=".json,.csv,.txt,application/json,text/csv" hidden>
+          <div class="drop" id="drop" role="button" tabindex="0" aria-label="Choose an auditorium file">
             <div class="drop-t">Drop a file here, or <u>choose a file</u></div>
             <div class="drop-s">.json auditorium file · .csv seat list (seat,x,y,z)</div>
-          </label>
+          </div>
           <div class="chips" style="margin-top:10px">
+            <button class="btn btn-sky btn-sm" id="btn-demo" title="Explore Roomio with a sample hall and simulated Smaart data — nothing is saved to your venue">Try the demo</button>
             <button class="btn btn-secondary btn-sm" id="btn-example">Use the example hall</button>
             <button class="btn btn-secondary btn-sm" id="btn-profile" title="A .roomio.json file exported from Roomio on another computer">Import a venue profile…</button>
             <details class="fmt"><summary>What goes in the file?</summary>
@@ -101,8 +101,8 @@
         <div class="card-body">
           <div class="note" style="margin-top:0"><b>In Smaart:</b> Options → Preferences → API → turn on the API. If Smaart runs on this computer, keep the host as <b>localhost</b>.</div>
           <div class="form-row three">
-            <div><label for="sm-host">Smaart computer (host or IP)</label><input id="sm-host" value="localhost" autocomplete="off"></div>
-            <div><label for="sm-port">Port</label><input id="sm-port" type="number" value="26000" min="1" max="65535"></div>
+            <div><label for="sm-host">Smaart computer (host or IP)</label><input id="sm-host" autocomplete="off"></div>
+            <div><label for="sm-port">Port</label><input id="sm-port" type="number" min="1" max="65535"></div>
             <div><label for="sm-path">Smaart version</label><select id="sm-path">
               <option value="/api/v4/">Smaart v9 (/api/v4/)</option>
               <option value="/api/v3/">Smaart 8 / Di 2 (/api/v3/)</option>
@@ -139,6 +139,7 @@
 
   <script src="js/bridge.js"></script>
   <script src="js/auditorium.js"></script>
+  <script src="js/smaart-defaults.js"></script>
   <script src="js/map.js"></script>
   <script src="js/setup.js"></script>
 </body>

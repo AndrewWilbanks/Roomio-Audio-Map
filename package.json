@@ -1,7 +1,7 @@
 {
   "name": "roomio",
   "productName": "Roomio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Seat-by-seat SPL, low-end and frequency-response maps of an auditorium, referenced live to Smaart at FOH.",
   "main": "main/main.js",
   "author": "Roomio",
@@ -10,11 +10,14 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test test/*.test.js",
-    "e2e": "node dev/e2e-setup.js && node dev/e2e-live.js",
-    "dist:mac": "electron-builder --mac --publish never",
-    "dist:win": "electron-builder --win --publish never",
-    "dist": "electron-builder --mac --win --publish never",
-    "release": "electron-builder --mac --win --publish always"
+    "e2e": "node dev/e2e-setup.js && node dev/e2e-live.js && node dev/e2e-demo.js",
+    "dist:mac": "node dev/build-help.js && electron-builder --mac --publish never",
+    "dist:win": "node dev/build-help.js && electron-builder --win --publish never",
+    "dist": "node dev/build-help.js && electron-builder --mac --win --publish never",
+    "release": "node dev/build-help.js && electron-builder --mac --win --publish always",
+    "help": "node dev/build-help.js",
+    "dist:mas": "node dev/build-help.js && electron-builder --mac mas --universal --config build/electron-builder.mas.js --publish never",
+    "dist:appx": "node dev/build-help.js && electron-builder --win appx --config build/electron-builder.appx.js --publish never"
   },
   "devDependencies": {
     "electron": "^44.4.5",
@@ -31,7 +34,7 @@
   "build": {
     "appId": "app.roomio.desktop",
     "productName": "Roomio",
-    "copyright": "Copyright \u00a9 2026",
+    "copyright": "Copyright © 2026",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -74,7 +77,10 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "artifactName": "Roomio-${version}-mac-universal.${ext}"
+      "artifactName": "Roomio-${version}-mac-universal.${ext}",
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "Used to connect to Smaart on your local network for measurement data"
+      }
     },
     "dmg": {
       "title": "Roomio ${version}",
@@ -96,7 +102,7 @@
     "nsis": {
       "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
+      "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "shortcutName": "Roomio",
       "deleteAppDataOnUninstall": false
@@ -108,6 +114,10 @@
         "repo": "Roomio-Audio-Map",
         "releaseType": "draft"
       }
-    ]
-  }
+    ],
+    "extraMetadata": {
+      "buildTarget": "direct"
+    }
+  },
+  "buildTarget": "direct"
 }

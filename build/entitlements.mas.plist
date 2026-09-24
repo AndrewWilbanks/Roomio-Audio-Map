@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Mac App Store build: sandboxed; see SANDBOX.md -->
+  <key>com.apple.security.app-sandbox</key><true/>
+  <!-- outgoing WebSocket to Smaart (client only: no network.server) -->
+  <key>com.apple.security.network.client</key><true/>
+  <!-- auditorium / profile / CSV files chosen in Open & Save dialogs or dropped on the window -->
+  <key>com.apple.security.files.user-selected.read-write</key><true/>
+</dict>
+</plist>

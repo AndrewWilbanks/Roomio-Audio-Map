@@ -22,6 +22,7 @@
     if (!st.ready) { showNoVenue(st.error); return; }
     ROOM = Store.room;
     rebuildSeats();
+    if (Store.venue.demo) showDemoBanner();
     latest = Store.latest();
     latestSp = Store.latestSpectra();
 
@@ -55,6 +56,15 @@
     });
     route();
     renderStatus();
+  }
+
+  function showDemoBanner() {
+    const b = document.createElement('div');
+    b.className = 'demo-banner';
+    b.innerHTML = `<b>Demo mode</b><span>Sample hall with simulated Smaart data — seats follow the live FOH level. Nothing here touches your own venue.</span>
+      <button class="btn btn-sm" id="demo-exit">Exit demo</button>`;
+    document.querySelector('.main').prepend(b);
+    $('#demo-exit').onclick = () => onMenuAction('exit-demo');
   }
 
   function showNoVenue(error) {
@@ -662,10 +672,10 @@
         Any <b>frequency, dB</b> columns work — FFT or 1/3-octave; it's converted to 31 third-octave bands. A plain list of 31 values (20 Hz → 20 kHz) also works.</p>
       <label>Seat trace (measurement mic at this seat)</label>
       <textarea id="imp-seat" placeholder="Hz	dB&#10;20	78.1&#10;25	79.4&#10;…" style="min-height:90px"></textarea>
-      <input type="file" id="imp-seat-file" accept=".txt,.csv,.asc,text/plain" style="margin-top:6px;font-size:12.5px">
+      <button class="btn btn-secondary btn-sm" id="imp-seat-file" style="margin-top:6px">Choose file…</button>
       <label>FOH trace (booth mic at the same moment)</label>
       <textarea id="imp-foh" placeholder="${liveFOH ? 'Leave empty to use the live FOH response from Smaart' : 'Paste the FOH trace…'}" style="min-height:90px"></textarea>
-      <input type="file" id="imp-foh-file" accept=".txt,.csv,.asc,text/plain" style="margin-top:6px;font-size:12.5px">
+      <button class="btn btn-secondary btn-sm" id="imp-foh-file" style="margin-top:6px">Choose file…</button>
       <label class="check"><input type="checkbox" id="imp-bands" checked> Also save Low / Lo-Mid / HF readings from these curves</label>
       <p class="hint" id="imp-status" style="margin-top:10px"></p>`,
       '<button class="btn btn-secondary btn-sm" data-close>Cancel</button><button class="btn btn-primary btn-sm" id="imp-save">Save response</button>');
@@ -677,8 +687,9 @@
       return [a, b];
     };
     ['#imp-seat', '#imp-foh'].forEach(id => $(id).addEventListener('input', status));
-    [['#imp-seat-file', '#imp-seat'], ['#imp-foh-file', '#imp-foh']].forEach(([f, t]) => $(f).onchange = async (e) => {
-      if (e.target.files[0]) { $(t).value = await e.target.files[0].text(); status(); }
+    [['#imp-seat-file', '#imp-seat'], ['#imp-foh-file', '#imp-foh']].forEach(([b, t]) => $(b).onclick = async () => {
+      try { const f = await RA.openTextFile('trace'); if (f) { $(t).value = f.text; status(); } }
+      catch (e) { toast('Could not open the file: ' + e.message); }
     });
     status();
     $('#imp-save').onclick = () => {
@@ -824,10 +835,10 @@
     openModal('Smaart connection', `
       <div class="note"><b>In Smaart:</b> Options → Preferences → API → enable the API (default port 26000). Use host <b>localhost</b> when Roomio runs on the Smaart computer, or that computer's IP address otherwise.
         Command formats come from the free Smaart API SDK (support@rationalacoustics.com); paste them below and map the fields using the live message list.</div>
-      <div class="form-row three"><div><label>Smaart computer (IP or hostname)</label><input id="sm-host" value="${esc(c.host)}"></div>
-        <div><label>Port</label><input id="sm-port" type="number" value="${c.port}"></div>
+      <div class="form-row three"><div><label>Smaart computer (IP or hostname)</label><input id="sm-host" value="${esc(c.host || '')}" placeholder="e.g. ${esc(SMAART_DEFAULTS.host)}"></div>
+        <div><label>Port</label><input id="sm-port" type="number" min="1" max="65535" value="${c.port || ''}" placeholder="${SMAART_DEFAULTS.port}"></div>
         <div><label>API path</label><select id="sm-path">
-          ${[['/api/v4/', 'Smaart v9 (/api/v4/)'], ['/api/v3/', 'Smaart 8 / Di 2 (/api/v3/)'], ['', 'None']].map(([v, l]) => `<option value="${v}" ${(c.path == null ? '/api/v4/' : c.path) === v ? 'selected' : ''}>${l}</option>`).join('')}
+          ${[['/api/v4/', 'Smaart v9 (/api/v4/)'], ['/api/v3/', 'Smaart 8 / Di 2 (/api/v3/)'], ['', 'None']].map(([v, l]) => `<option value="${v}" ${(c.path == null ? SMAART_DEFAULTS.path : c.path) === v ? 'selected' : ''}>${l}</option>`).join('')}
         </select></div></div>
       <div class="form-row"><div><label>API password <span class="muted">(only if set in Smaart — stored encrypted on this computer)</span></label><input id="sm-pw" type="password" autocomplete="off" placeholder="not set"></div>
         <div><label>Poll every (ms)</label><input id="sm-poll" type="number" min="100" step="50" value="${c.pollMs}"></div></div>
@@ -858,8 +869,8 @@
        <button class="btn btn-primary btn-sm" id="sm-save">Save</button>`, 'wide');
 
     const collect = () => {
-      c.host = $('#sm-host').value.trim() || 'localhost';
-      c.port = +$('#sm-port').value || 26000;
+      c.host = $('#sm-host').value.trim();                 // blank stays blank -> clear error, no silent default
+      c.port = parseInt($('#sm-port').value, 10) || null;
       c.path = $('#sm-path').value;
       const pw = $('#sm-pw');
       if (pw.dataset.changed) { Smaart.setPassword(pw.value); delete pw.dataset.changed; }
@@ -953,7 +964,7 @@
       <p class="hint">${Store.readings.length} readings across ${new Set(Store.readings.map(r => r.seat_id)).size} seats · ${Store.spectra.length} frequency responses across ${latestSp.size} seats.</p>
       <div class="chips" style="margin-top:8px">
         <button class="btn btn-secondary btn-sm" id="d-export">Export CSV</button>
-        <label class="btn btn-secondary btn-sm" style="margin:0;color:var(--ink)">Import CSV<input type="file" id="d-import" accept=".csv,text/csv" hidden></label>
+        <button class="btn btn-secondary btn-sm" id="d-import">Import CSV…</button>
         <button class="btn btn-secondary btn-sm" id="d-export-fr">Export responses CSV</button>
         <button class="btn btn-danger btn-sm" id="d-clear">Clear all measurements</button>
       </div>
@@ -963,7 +974,10 @@
       '<button class="btn btn-primary btn-sm" data-close>Done</button>');
     $('#d-export').onclick = exportCsv;
     $('#d-export-fr').onclick = exportSpectraCsv;
-    $('#d-import').onchange = (e) => importCsv(e.target.files[0]);
+    $('#d-import').onclick = async () => {
+      try { const f = await RA.openTextFile('readings'); if (f) importCsv(f); }
+      catch (e) { toast('Could not open the file: ' + e.message); }
+    };
     $('#d-clear').onclick = async () => {
       if (!confirm(`Delete all ${Store.readings.length} readings and ${Store.spectra.length} frequency responses? This can't be undone. (Export CSVs first if you want a backup.)`)) return;
       try { await Store.clearReadings(); toast('All readings cleared'); } catch (err) { toast('Clear failed: ' + err.message); }
@@ -983,19 +997,15 @@
       const s = seatById.get(r.seat_id) || {};
       return [r.seat_id, s.section, s.row, s.seat, r.metric, r.seat_value, r.booth_value, r.delta, r.notes, r.measured_at].map(q).join(',');
     }));
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
-    a.download = `roomio-readings-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    downloadCsv('roomio-readings', lines);
   }
 
-  function downloadCsv(name, lines) {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
-    a.download = `${name}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  // native Save dialog (SANDBOX.md) — the user picks where it goes
+  async function downloadCsv(name, lines) {
+    try {
+      const saved = await RA.saveTextFile('csv', `${name}-${new Date().toISOString().slice(0, 10)}.csv`, lines.join('\n'));
+      if (saved) toast('Saved ' + saved);
+    } catch (e) { toast('Export failed: ' + e.message); }
   }
 
   // one row per capture per mic: seat_id, ..., trace (seat|foh), then the 31 band levels
@@ -1024,9 +1034,9 @@
     return rows.filter(r => r.some(c => c.trim()));
   }
 
-  async function importCsv(file) {
+  async function importCsv(file) {              // file = { name, text } from the native Open dialog
     if (!file) return;
-    const rows = parseCsv(await file.text());
+    const rows = parseCsv(file.text);
     const head = rows.shift().map(h => h.trim().toLowerCase());
     const ix = (k) => head.indexOf(k);
     if (ix('seat_id') < 0 || ix('metric') < 0 || ix('seat_value') < 0 || ix('booth_value') < 0) { toast('CSV needs seat_id, metric, seat_value, booth_value columns'); return; }
@@ -1068,32 +1078,38 @@
   async function openSettings() {
     const info = RA.native ? await RA.native.info() : { version: 'dev', userData: '(browser storage)' };
     const f = Store.venue.foh || {};
-    openModal('Settings', `
+    const demoNote = info.demo ? `<div class="note" style="margin-top:6px"><b>Demo mode.</b> This is a sample hall with simulated Smaart data — nothing here touches your own venue.
+      <button class="btn btn-primary btn-sm" id="st-exit-demo" style="margin-left:8px">Exit demo</button></div>` : '';
+    openModal('Settings', `${demoNote}
       <div class="section-h">Venue</div>
       <p class="hint"><b>${esc(ROOM.name)}</b> · ${seats.length} seats · ${ROOM.sections.length} section${ROOM.sections.length === 1 ? '' : 's'}
         · FOH at x ${fmt(f.x, 2)}, y ${fmt(f.y, 2)} ${esc(ROOM.units)}</p>
-      <div class="chips" style="margin-top:8px">
+      ${info.demo ? '' : `<div class="chips" style="margin-top:8px">
         <button class="btn btn-secondary btn-sm" id="st-new">New venue…</button>
         <button class="btn btn-danger btn-sm" id="st-reset">Reset venue…</button>
       </div>
-      <p class="hint small" style="margin-top:8px">New venue and Reset keep a backup of the current venue and its measurements in the data folder.</p>
+      <p class="hint small" style="margin-top:8px">New venue and Reset keep a backup of the current venue and its measurements inside Roomio's data.</p>`}
       <div class="section-h">Venue profile</div>
       <p class="hint">One file with this venue's auditorium, FOH, Smaart settings and field mapping — for another computer or a backup. The Smaart password is never included.</p>
       <label class="check"><input type="checkbox" id="st-incl" checked> Include measurements (${Store.readings.length} readings, ${Store.spectra.length} frequency responses)</label>
       <div class="chips" style="margin-top:8px">
         <button class="btn btn-secondary btn-sm" id="st-export">Export venue profile…</button>
-        <button class="btn btn-secondary btn-sm" id="st-import">Import venue profile…</button>
+        ${info.demo ? '' : '<button class="btn btn-secondary btn-sm" id="st-import">Import venue profile…</button>'}
+        ${info.demo ? '' : '<button class="btn btn-secondary btn-sm" id="st-backup" title="Venue + all measurements in one file, saved where you choose">Back up all data…</button>'}
       </div>
       <div class="section-h">Smaart</div>
       <p class="hint">${esc(statusText())}</p>
       <button class="btn btn-secondary btn-sm" id="st-smaart" style="margin-top:6px">Smaart connection…</button>
       <div class="section-h">About</div>
-      <p class="hint">Roomio ${esc(info.version)} · data folder: <code>${esc(info.userData)}</code></p>`,
+      <p class="hint">Roomio ${esc(info.version)}${info.buildTarget && info.buildTarget !== 'direct' ? ` (${esc(info.buildTarget)} build)` : ''} · data is stored in <code>${esc(info.userData)}</code></p>`,
       '<button class="btn btn-primary btn-sm" data-close>Done</button>');
-    $('#st-new').onclick = () => onMenuAction('new-venue');
-    $('#st-reset').onclick = () => onMenuAction('reset-venue');
-    $('#st-export').onclick = () => exportProfile($('#st-incl').checked);
-    $('#st-import').onclick = () => onMenuAction('import-profile');
+    const on = (id, fn) => { const b = $(id); if (b) b.onclick = fn; };
+    on('#st-new', () => onMenuAction('new-venue'));
+    on('#st-reset', () => onMenuAction('reset-venue'));
+    on('#st-export', () => exportProfile($('#st-incl').checked));
+    on('#st-import', () => onMenuAction('import-profile'));
+    on('#st-backup', () => onMenuAction('backup'));
+    on('#st-exit-demo', () => onMenuAction('exit-demo'));
     $('#st-smaart').onclick = openSmaart;
   }
 
@@ -1110,6 +1126,7 @@
   async function onMenuAction(action) {
     if (action === 'settings') return openSettings();
     if (action === 'export-profile') return exportProfile(true);
+    if (action === 'backup') return exportProfile(true);        // venue + all measurements, via the Save dialog
     if (!RA.native) { toast('This works in the desktop app'); return; }
     await Store.flush();
     closeModal();
@@ -1117,6 +1134,7 @@
       if (action === 'new-venue') await RA.native.openSetup();
       else if (action === 'reset-venue') await RA.native.venueReset();
       else if (action === 'import-profile') await RA.native.profileImport();
+      else if (action === 'exit-demo') await RA.native.demoExit();
     } catch (e) { toast(e.message); }
   }
 

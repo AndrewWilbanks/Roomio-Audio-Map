@@ -23,6 +23,11 @@ contextBridge.exposeInMainWorld('raNative', {
   setupCancel: () => ipcRenderer.invoke('setup:cancel'),
   openSetup: () => ipcRenderer.invoke('setup:open'),
   example: () => ipcRenderer.invoke('setup:example'),
+  demoStart: () => ipcRenderer.invoke('demo:start'),
+  demoExit: () => ipcRenderer.invoke('demo:exit'),
+  // user files — native dialogs only (SANDBOX.md). purpose: 'auditorium' | 'trace' | 'readings'
+  fileOpenText: (purpose) => ipcRenderer.invoke('file:openText', purpose),
+  fileSaveText: (purpose, defaultName, text) => ipcRenderer.invoke('file:saveText', purpose, defaultName, text),
   // Smaart (the connection lives in the main process; the password never comes back here)
   smaartTest: (cfg, password) => ipcRenderer.invoke('smaart:test', cfg, password),
   smaartConnect: (cfg) => ipcRenderer.invoke('smaart:connect', cfg),

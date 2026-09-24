@@ -1,15 +1,51 @@
-// smaart-test.js — one-shot "Test connection" for the setup wizard and Smaart settings.
+// smaart-test.js — one-shot "Test connection" for the setup wizard and Smaart settings,
+// plus the shared helpers for building the Smaart URL and wording connection errors.
 // Connects, does Smaart's handshake ({"sequenceNumber":1,"action":"get"}), logs in if Smaart
 // asks for the API password, and reports back in plain language.
 const WebSocket = require('ws');
 
-function smaartUrl({ host, port, path }) {
-  let p = path == null ? '/api/v4/' : String(path).trim();
+// Connection values come from venue.json only: a missing host or port is an error, not a default.
+function checkConfig(cfg) {
+  if (!cfg || !String(cfg.host || '').trim()) return 'Smaart host isn\'t set — enter it in the Smaart settings.';
+  const port = Number(cfg.port);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return 'Smaart port isn\'t set (1–65535) — enter it in the Smaart settings.';
+  return null;
+}
+
+function smaartUrl(cfg) {
+  const err = checkConfig(cfg);
+  if (err) throw new Error(err);
+  let p = cfg.path == null ? '' : String(cfg.path).trim();
   if (p && !p.startsWith('/')) p = '/' + p;
-  return `ws://${host || 'localhost'}:${port || 26000}${p}`;
+  const host = String(cfg.host).trim();
+  return `ws://${host.includes(':') && !host.startsWith('[') ? `[${host}]` : host}:${Number(cfg.port)}${p}`;
+}
+
+// Plain-language wording for socket errors (used by the test and the live service)
+function describeError(e, cfg) {
+  const where = `${cfg && cfg.host}:${cfg && cfg.port}`;
+  const code = e && (e.code || (e.cause && e.cause.code));
+  const msg = String(e && e.message || e || '');
+  if (code === 'ECONNREFUSED') return `Nothing is listening at ${where}. Start Smaart and enable its API (Options → Preferences → API).`;
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return `Can't find a computer called "${cfg && cfg.host}". Check the host name or use its IP address.`;
+  if (code === 'EHOSTUNREACH' || code === 'ENETUNREACH' || code === 'EHOSTDOWN') {
+    return process.platform === 'darwin'
+      ? `Can't reach ${where}. Check the network — and that Roomio is allowed on the local network (System Settings → Privacy & Security → Local Network).`
+      : `Can't reach ${where}. Check the network cable/Wi-Fi and the host address.`;
+  }
+  if (code === 'EACCES' || code === 'EPERM') {
+    return process.platform === 'darwin'
+      ? 'Roomio isn\'t allowed to use the local network. Turn it on in System Settings → Privacy & Security → Local Network.'
+      : 'The connection was blocked (permission denied). Check firewall settings for Roomio.';
+  }
+  if (code === 'ETIMEDOUT' || /timed? ?out/i.test(msg)) return `No answer from ${where} in time. Check that Smaart is running and the host/port are right, and that a firewall isn't blocking port ${cfg && cfg.port}.`;
+  if (code === 'ECONNRESET') return 'Smaart closed the connection. Check that its API is enabled, then retry.';
+  return `Could not connect: ${msg || code || 'unknown error'}`;
 }
 
 function testConnection(cfg, password, timeoutMs = 5000) {
+  const bad = checkConfig(cfg);
+  if (bad) return Promise.resolve({ ok: false, message: bad, code: 'config' });
   const url = smaartUrl(cfg);
   return new Promise((resolve) => {
     let ws, done = false, stage = 'connect';
@@ -21,8 +57,8 @@ function testConnection(cfg, password, timeoutMs = 5000) {
       resolve({ ok, message, url, ...extra });
     };
     const timer = setTimeout(() => finish(false, stage === 'connect'
-      ? `No answer from ${url}. Check that Smaart is running, its API is enabled, and the host/port are right.`
-      : 'Smaart connected but didn\'t answer the handshake. Check the API path (v9 uses /api/v4/).'), timeoutMs);
+      ? describeError({ code: 'ETIMEDOUT' }, cfg)
+      : 'Smaart connected but didn\'t answer the handshake. Check the Smaart version setting (v9 uses /api/v4/).', { code: 'timeout' }), timeoutMs);
 
     try { ws = new WebSocket(url, { handshakeTimeout: timeoutMs }); }
     catch (e) { finish(false, `Invalid address: ${e.message}`); return; }
@@ -55,10 +91,8 @@ function testConnection(cfg, password, timeoutMs = 5000) {
     });
     ws.on('unexpected-response', (req, res) => finish(false,
       res.statusCode === 404 ? `Smaart is there, but not at path "${cfg.path}". Smaart v9 uses /api/v4/, Smaart 8 uses /api/v3/.` : `Smaart refused the connection (HTTP ${res.statusCode}).`));
-    ws.on('error', (e) => finish(false, e.code === 'ECONNREFUSED'
-      ? `Nothing is listening at ${cfg.host || 'localhost'}:${cfg.port || 26000}. Start Smaart and enable its API (Options → Preferences → API).`
-      : e.code === 'ENOTFOUND' ? `Can't find a computer called "${cfg.host}".` : `Could not connect: ${e.message}`));
+    ws.on('error', (e) => finish(false, describeError(e, cfg), { code: e.code }));
   });
 }
 
-module.exports = { testConnection, smaartUrl };
+module.exports = { testConnection, smaartUrl, checkConfig, describeError };

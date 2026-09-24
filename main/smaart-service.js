@@ -3,7 +3,7 @@
 // keepalive, poll messages, reconnect with backoff. The window only gets status + messages.
 const EventEmitter = require('events');
 const WebSocket = require('ws');
-const { smaartUrl } = require('./smaart-test');
+const { smaartUrl, checkConfig, describeError } = require('./smaart-test');
 
 const BACKOFF = [1000, 2000, 4000, 8000, 15000];   // ms between reconnect attempts, then stays at 15 s
 
@@ -28,6 +28,8 @@ class SmaartService extends EventEmitter {
 
   connect(cfg) {
     this.stop(true);
+    const bad = checkConfig(cfg);                    // values come from venue.json — no silent defaults
+    if (bad) { this.setStatus('error', bad, { nextRetryAt: null }); return; }
     this.cfg = { ...cfg };
     this.wanted = true;
     this.attempt = 0;
@@ -58,10 +60,7 @@ class SmaartService extends EventEmitter {
     ws.on('unexpected-response', (_req, res) => {
       this.lastError = res.statusCode === 404 ? `Smaart answered, but not at "${this.cfg.path}". Check the Smaart version setting.` : `Smaart refused the connection (HTTP ${res.statusCode}).`;
     });
-    ws.on('error', (e) => {
-      this.lastError = e.code === 'ECONNREFUSED' ? 'Smaart isn\'t reachable — is it running with its API enabled?'
-        : e.code === 'ENOTFOUND' ? `Can't find "${this.cfg.host}".` : e.message;
-    });
+    ws.on('error', (e) => { this.lastError = describeError(e, this.cfg); });
     ws.on('close', () => {
       this.stopTimers();
       if (this.ws === ws) this.ws = null;

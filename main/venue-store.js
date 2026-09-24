@@ -12,7 +12,11 @@ const Auditorium = require('../renderer/js/auditorium.js');
 const VENUE_SCHEMA_VERSION = 1;
 const DATA_SCHEMA_VERSION = 1;
 
-const dir = () => app.getPath('userData');
+// Demo mode keeps its own venue + measurements in userData/demo, away from the real venue.
+let demoMode = false;
+const baseDir = () => app.getPath('userData');
+const dir = () => demoMode ? path.join(baseDir(), 'demo') : baseDir();
+function setDemo(on) { demoMode = !!on; }
 const file = (name) => path.join(dir(), name);
 
 function readJson(name) {
@@ -98,6 +102,7 @@ const data = {
 // Smaart API password, encrypted with the OS keychain (Keychain / DPAPI). Never exported.
 const credentials = {
   get() {
+    if (demoMode) return '';
     const c = readJson('credentials.json');
     if (!c || !c.smaartPassword) return '';
     try {
@@ -149,4 +154,14 @@ function importProfile(parsed) {
   return where;
 }
 
-module.exports = { VENUE_SCHEMA_VERSION, venue, data, credentials, userDataDir: dir, exportProfile, parseProfile, importProfile };
+// Demo mode: write a fresh demo venue + measurements into userData/demo
+function writeDemo({ venue: v, measurements }) {
+  setDemo(true);
+  writeJson('venue.json', v);
+  writeJson('measurements.json', { schemaVersion: DATA_SCHEMA_VERSION, ...measurements });
+}
+
+module.exports = {
+  VENUE_SCHEMA_VERSION, venue, data, credentials, userDataDir: dir, exportProfile, parseProfile, importProfile,
+  setDemo, writeDemo, isDemo: () => demoMode,
+};

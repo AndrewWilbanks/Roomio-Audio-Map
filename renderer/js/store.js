@@ -5,8 +5,10 @@
 (function () {
   const SCHEMA_VERSION = 1;
 
+  // Connection values (host/port/path) come only from the venue — they are deliberately NOT
+  // defaulted here; the wizard pre-fills them from SMAART_DEFAULTS and saves them (SANDBOX.md).
   const defaultSmaart = () => ({
-    host: 'localhost', port: 26000, path: '/api/v4/', autoConnect: true, pollMs: 500,
+    autoConnect: true, pollMs: 500,
     pollMessages: '',              // one JSON command per line, sent every poll
     paths: {},                     // booth metric -> JSON path in Smaart messages
     seatPaths: {},                 // roaming-mic metric -> JSON path (optional)

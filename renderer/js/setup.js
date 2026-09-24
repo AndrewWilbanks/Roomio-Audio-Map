@@ -42,8 +42,9 @@
   function updateNext() { $('#btn-next').disabled = !canContinue(); }
 
   // ------------------------------------------------------------ step 1: import
+  // file = { name, text } from the native Open dialog, or a dropped File (drag-and-drop is allowed)
   async function loadFile(file) {
-    const text = await file.text();
+    const text = typeof file.text === 'string' ? file.text : await file.text();
     const kind = /\.csv$|\.txt$/i.test(file.name) || (!/^\s*[{[]/.test(text) && /,/.test(text)) ? 'csv' : 'json';
     state.source = { name: file.name, kind, text };
     if (kind === 'csv') {
@@ -156,12 +157,13 @@
 
   // ------------------------------------------------------------ step 3: Smaart
   function smaartCfg() {
-    return { host: $('#sm-host').value.trim() || 'localhost', port: parseInt($('#sm-port').value, 10) || 26000, path: $('#sm-path').value, autoConnect: $('#sm-auto').checked };
+    return { host: $('#sm-host').value.trim(), port: parseInt($('#sm-port').value, 10) || null, path: $('#sm-path').value, autoConnect: $('#sm-auto').checked };
   }
 
   async function testConnection() {
     const out = $('#test-result'), btn = $('#btn-test');
     const cfg = smaartCfg();
+    if (!cfg.host) { out.className = 'test-result bad'; out.textContent = 'Enter the Smaart computer\'s host or IP.'; return; }
     if (!(cfg.port >= 1 && cfg.port <= 65535)) { out.className = 'test-result bad'; out.textContent = 'Port must be 1–65535.'; return; }
     if (!native) { out.className = 'test-result'; out.textContent = 'Test connection works in the desktop app.'; return; }
     btn.disabled = true; out.className = 'test-result'; out.textContent = 'Testing…';
@@ -226,13 +228,26 @@
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
-    const drop = $('#drop'), file = $('#file');
-    file.onchange = () => { if (file.files[0]) loadFile(file.files[0]); file.value = ''; };
+    // pre-fill Smaart's factory settings (saved into venue.json, which is what's used from then on)
+    $('#sm-host').value = SMAART_DEFAULTS.host;
+    $('#sm-port').value = SMAART_DEFAULTS.port;
+    $('#sm-path').value = SMAART_DEFAULTS.path;
+    const drop = $('#drop');
+    const choose = async () => {
+      try { const f = await RA.openTextFile('auditorium'); if (f) loadFile(f); }
+      catch (e) { toast('Could not open the file: ' + e.message); }
+    };
+    drop.addEventListener('click', choose);
+    drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); } });
     ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
     ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
     drop.addEventListener('drop', (e) => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
     ['#csv-name', '#csv-units', '#csv-yaxis'].forEach(id => $(id).addEventListener('change', parseSource));
     $('#btn-example').onclick = loadExample;
+    $('#btn-demo').onclick = async () => {
+      if (!native) { toast('Demo mode works in the desktop app'); return; }
+      try { await native.demoStart(); } catch (e) { toast('Could not start the demo: ' + e.message); }
+    };
     const importProfile = async () => {
       if (!native) { toast('Venue profiles work in the desktop app'); return; }
       try { await native.profileImport(); } catch (e) { toast(e.message); }

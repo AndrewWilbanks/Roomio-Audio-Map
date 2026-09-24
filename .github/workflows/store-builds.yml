@@ -1,0 +1,62 @@
+# Validate the store packages (run manually: Actions → store-builds → Run workflow).
+# Produces build artifacts only — nothing is published. See SANDBOX.md.
+#  - mas: signed if the MAS_* secrets exist, otherwise an unsigned universal .app (structure check)
+#  - appx: MSIX with the placeholder identity from build/electron-builder.appx.js (unsigned)
+name: store-builds
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mas:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test
+      - name: Build Mac App Store package
+        shell: bash
+        env:
+          MAS_CERT: ${{ secrets.MAS_CERT_P12_BASE64 }}
+          MAS_CERT_PASSWORD: ${{ secrets.MAS_CERT_PASSWORD }}
+          MAS_PROFILE: ${{ secrets.MAS_PROVISIONPROFILE_BASE64 }}
+        run: |
+          node dev/build-help.js
+          if [ -n "$MAS_CERT" ] && [ -n "$MAS_PROFILE" ]; then
+            echo "$MAS_PROFILE" | base64 --decode > build/embedded.provisionprofile
+            export CSC_LINK="$MAS_CERT" CSC_KEY_PASSWORD="$MAS_CERT_PASSWORD"
+            npx electron-builder --mac mas --universal --config build/electron-builder.mas.js --publish never
+          else
+            echo "No MAS signing secrets: building an unsigned .app to validate packaging."
+            npx electron-builder --mac mas --universal --config build/electron-builder.mas.js --publish never -c.mac.identity=null
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: roomio-mas
+          path: |
+            dist/*.pkg
+            dist/mas-universal/
+          if-no-files-found: warn
+
+  appx:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test
+      - name: Build MSIX (appx)
+        shell: bash
+        run: |
+          node dev/build-help.js
+          npx electron-builder --win appx --config build/electron-builder.appx.js --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: roomio-appx
+          path: dist/*.appx
+          if-no-files-found: error

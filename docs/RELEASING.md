@@ -53,3 +53,18 @@ npm run dist:mac     # universal .dmg + .zip (unsigned unless a Developer ID is 
 npm run dist:win     # NSIS installer, x64 + arm64 (cross-builds from macOS, unsigned)
 ```
 Local builds use `--publish never`; they never upload anything.
+
+## Store builds (Mac App Store / Microsoft Store)
+
+These stay buildable at all times (rules: [`SANDBOX.md`](../SANDBOX.md)) but aren't published yet.
+
+- **Validate in CI:** Actions → **store-builds** → Run workflow. Produces artifacts only.
+  - `mas`: unsigned universal `.app`, or a signed `.pkg` once the secrets `MAS_CERT_P12_BASE64`,
+    `MAS_CERT_PASSWORD` ("Apple Distribution" + "Mac Installer Distribution" certificates) and
+    `MAS_PROVISIONPROFILE_BASE64` (App Store provisioning profile) exist.
+  - `appx`: MSIX package with **placeholder identity** — fill in `identityName`, `publisher`,
+    `publisherDisplayName` in `build/electron-builder.appx.js` from Partner Center before submitting.
+- **Locally:** `npm run dist:mas` (macOS; needs the MAS certificates and `build/embedded.provisionprofile`,
+  add `-c.mac.identity=null` for an unsigned structure check) · `npm run dist:appx` (Windows only).
+- Store builds have **no self-update** (`buildTarget` = `mas` / `appx`): no updater code, no update
+  checks, no "Check for Updates…" menu item. The stores deliver updates.
