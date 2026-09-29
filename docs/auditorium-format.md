@@ -1,6 +1,8 @@
 # Auditorium file format
 
-Roomio needs the position of every seat. Give it either:
+Roomio needs the position of every seat. The easiest way is a **floor plan** (PDF, PNG, JPEG or SVG):
+setup finds the seats in it and writes this format for you (see the README, *Start from a floor plan*).
+To make the file yourself, give it either:
 
 - a **JSON auditorium file** (`*.auditorium.json`) — full format below, schema in [`auditorium.schema.json`](auditorium.schema.json), or
 - a **CSV seat list** with columns `seat,x,y,z`.

@@ -37,3 +37,29 @@ html[data-theme="dark"] .warns li{color:#f0c07e;}
 .wizard-err{color:var(--danger);font-size:13px;font-weight:700;}
 .setup .card{margin-bottom:0;}
 .step[hidden]{display:none;}
+
+/* floor-plan import (plan-import.js) */
+.plan{margin-top:16px;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface);}
+.plan-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.plan-file{font-size:12px;font-weight:700;color:var(--ink3);}
+.plan-count{margin-left:auto;font-weight:800;font-size:13px;color:var(--ink);}
+.plan-guide{margin:8px 0 10px;padding-left:20px;font-size:13px;line-height:1.5;color:var(--ink2);}
+.plan-guide li.done{color:var(--ink3);}
+.plan-guide li.done b{text-decoration:line-through;text-decoration-color:var(--ok);}
+.plan-guide li.now b{color:var(--ink);}
+.plan-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+.plan-sens{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ink3);margin:0;}
+.plan-sens input{width:110px;}
+.plan-view{position:relative;height:min(58vh,580px);min-height:340px;border:1px solid var(--line2);border-radius:10px;overflow:hidden;background:#fff;touch-action:none;}
+.plan-view canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.plan-view.mode-box canvas,.plan-view.mode-measure canvas,.plan-view.mode-stage canvas{cursor:crosshair;}
+.plan-view.mode-edit canvas{cursor:copy;}
+.plan-view.panning canvas{cursor:grabbing;}
+.plan-busy{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:color-mix(in srgb,var(--paper) 72%,transparent);font-weight:800;}
+.plan-bar{width:220px;height:6px;border-radius:4px;background:var(--line2);overflow:hidden;}
+.plan-bar i{display:block;height:100%;width:0;background:var(--sky);transition:width .15s;}
+.plan-measure{position:absolute;left:12px;bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;box-shadow:0 4px 14px rgba(0,0,0,.12);}
+.plan-measure label{margin:0;font-size:12px;}
+.plan-measure input{width:110px;}
+.plan-foot{display:flex;align-items:center;gap:12px;margin-top:10px;}
+.plan-foot #plan-use{margin-left:auto;}

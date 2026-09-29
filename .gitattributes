@@ -4,3 +4,5 @@
 *.woff2 binary
 *.icns binary
 *.ico binary
+# vendored libraries are pinned by SHA-256 (MANIFEST.json): never convert their line endings
+renderer/vendor/** -text

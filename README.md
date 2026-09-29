@@ -54,10 +54,24 @@ The first time you open the app (or after **Reset Venue**) a four-step setup app
 
 **Just looking?** Press **Try the demo** on the first step: a sample hall with pre-measured seats and simulated Smaart data, so you can see everything working without Smaart. It never touches your own venue — leave it with **Exit demo**.
 
-1. **Auditorium** — drop in your auditorium file (`.json`) or a seat list (`.csv`). The app checks it and either shows a summary (seats, sections, size) or lists exactly what to fix, with line numbers. No file yet? Try **Use the example hall**, or **Import a venue profile…** if you exported one from another computer. See [the file format](#5-the-auditorium-file) below.
+1. **Auditorium** — drop in a **floor plan** of the room (PDF, PNG, JPEG or SVG) and Roomio finds the seats — see [Start from a floor plan](#start-from-a-floor-plan). Or use an auditorium file (`.json`) or seat list (`.csv`): the app checks it and either shows a summary (seats, sections, size) or lists exactly what to fix, with line numbers. No file yet? Try **Use the example hall**, or **Import a venue profile…** if you exported one from another computer. See [the file format](#5-the-auditorium-file) below.
 2. **FOH position** — click the map where your FOH measurement mic is, or type its x / y (and optional height) in your file's units. If your file has no stage, you can place it here too — seats then face it.
 3. **Smaart** — host, port, Smaart version, and the API password if you set one. Press **Test connection**; you'll get a plain answer such as *"Connected and logged in to Smaart"* or *"Nothing is listening at localhost:26000 — start Smaart and enable its API."* You can skip this and connect later.
 4. **Save** — the venue opens.
+
+---
+
+### Start from a floor plan
+
+Any top-down plan works: an architect's PDF or CAD export, a seating chart, a scan or a photo of a printed plan (taken straight on). Multi-page PDFs have a page picker.
+
+1. **Box a seat** — zoom in (scroll, or **+**) and drag a box around one seat. Roomio then finds every seat drawn the same way, at any angle, usually in a few seconds. Everything runs on your computer; the plan isn't sent anywhere.
+2. **Check the dots** — each section gets its own colour and letter. With **Add / remove**, click a dot to remove it or click an empty spot to add a seat. Drag to pan in any mode. Too few seats found? Raise **Sensitivity**; false ones? Lower it — or box a different, cleaner seat.
+3. **Stage** — Roomio works out where the stage is from the way the rows face (shown as **STAGE**). If it's wrong, choose **Stage** and click the right spot — rows renumber from it.
+4. **Scale** — pick feet or metres, then either type the **seat spacing** (centre to centre; 1.75 ft / 0.53 m is typical) or choose **Measure**, click two points a known distance apart (a wall, a stage edge) and type the distance.
+5. **Use these seats** — the result is checked like any auditorium file, and the plan is kept as the map's background.
+
+Seats are labelled *section-row-seat* (`B-4-12`): sections A, B, C… from the audience's left, row 1 nearest the stage, seat 1 on the audience's left. A photo taken from inside the room (at an angle) won't work — use a plan, or trace over one.
 
 ---
 
@@ -196,6 +210,7 @@ Everything lives in your user folder:
 | Connected, but values show — | Smaart has nothing to stream: calibrate the FOH input and start a spectrum measurement. The Smaart dialog's **Streaming now** shows what Roomio is receiving |
 | Works on the Smaart computer but not from another one | Use the Smaart computer's IP as host, and allow port 26000 in its firewall |
 | The auditorium file won't load | Setup lists each problem with its line or seat number — fix those and choose the file again |
+| A floor plan finds too few / too many seats | Adjust **Sensitivity**, or box a seat that's drawn cleanly (no labels or lines through it), then fix the rest with **Add / remove** |
 
 ---
 

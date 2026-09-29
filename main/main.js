@@ -170,13 +170,17 @@ handle('data:save', (d) => { store.data.save(d); return true; });
 // ---- user files: only through the native dialogs (sandbox rule). Purposes are a fixed list.
 const MAX_TEXT = 60 * 1024 * 1024;
 const OPEN_PURPOSES = {
-  auditorium: { title: 'Choose an auditorium file', filters: [{ name: 'Auditorium file (.json, .csv)', extensions: ['json', 'csv', 'txt'] }] },
+  auditorium: { title: 'Choose an auditorium file or floor plan', filters: [
+    { name: 'Auditorium file or floor plan', extensions: ['json', 'csv', 'txt', 'pdf', 'png', 'jpg', 'jpeg', 'svg'] },
+    { name: 'Floor plan (.pdf, .png, .jpg, .svg)', extensions: ['pdf', 'png', 'jpg', 'jpeg', 'svg'] },
+    { name: 'Auditorium file (.json, .csv)', extensions: ['json', 'csv', 'txt'] }] },
   trace: { title: 'Choose a Smaart ASCII export', filters: [{ name: 'Smaart export (.txt, .csv)', extensions: ['txt', 'csv', 'asc'] }, { name: 'All files', extensions: ['*'] }] },
   readings: { title: 'Import readings', filters: [{ name: 'CSV', extensions: ['csv'] }] },
 };
 const SAVE_PURPOSES = {
   csv: { title: 'Export CSV', filters: [{ name: 'CSV', extensions: ['csv'] }] },
 };
+const BINARY_TYPES = { '.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' };
 const safeName = (s) => String(s || 'untitled').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-').trim().slice(0, 120) || 'untitled';
 
 handle('file:openText', async (purpose) => {
@@ -186,7 +190,11 @@ handle('file:openText', async (purpose) => {
   if (canceled || !filePaths[0]) return null;
   const st = fs.statSync(filePaths[0]);
   if (st.size > MAX_TEXT) throw new Error('That file is too large (over 60 MB).');
-  return { name: path.basename(filePaths[0]), text: fs.readFileSync(filePaths[0], 'utf8') };
+  const name = path.basename(filePaths[0]);
+  // floor-plan pictures come back as base64 (the page renders them); everything else as text
+  const mime = BINARY_TYPES[path.extname(name).toLowerCase()];
+  if (mime && purpose === 'auditorium') return { name, mime, base64: fs.readFileSync(filePaths[0]).toString('base64') };
+  return { name, text: fs.readFileSync(filePaths[0], 'utf8') };
 });
 
 handle('file:saveText', async (purpose, defaultName, text) => {

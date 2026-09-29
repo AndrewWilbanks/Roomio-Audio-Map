@@ -22,6 +22,12 @@ sandbox-safe alternative before building it.
 - `RA_USER_DATA` (test override of the data folder) is honoured only in dev and
   direct-download builds, never in store builds.
 
+- Floor plans (PDF/PNG/JPEG/SVG) are read the same way and processed entirely in the window:
+  seat finding is plain JavaScript (`renderer/js/plan-detect.js`), PDFs are rendered by pdf.js
+  **vendored** under `renderer/vendor/pdfjs/` (pinned by SHA-256, checked by the tests; not an
+  npm dependency because that package pulls in an optional native module). No network, no
+  cloud AI.
+
 ## Processes and system
 - No `child_process`, shell commands, helper binaries, AppleScript/osascript, PowerShell, or
   launching other applications. (`shell.openExternal` for `http(s)` links is the one approved

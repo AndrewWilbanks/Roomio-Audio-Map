@@ -12,7 +12,7 @@
     return new Promise((resolve) => {
       const i = document.createElement('input');
       i.type = 'file'; i.accept = accept || '';
-      i.onchange = async () => { const f = i.files[0]; resolve(f ? { name: f.name, text: await f.text() } : null); };
+      i.onchange = async () => { const f = i.files[0]; resolve(f ? await RA.readDropped(f) : null); };
       i.click();
     });
   }
@@ -23,10 +23,21 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     return Promise.resolve(name);
   }
-  const ACCEPT = { auditorium: '.json,.csv,.txt', trace: '.txt,.csv,.asc', readings: '.csv' };
+  const ACCEPT = { auditorium: '.json,.csv,.txt,.pdf,.png,.jpg,.jpeg,.svg', trace: '.txt,.csv,.asc', readings: '.csv' };
+  const BINARY = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
+  // a dropped (or browser-picked) File -> the same shape the native dialog returns
+  async function readDropped(f) {
+    const ext = (f.name.match(/\.([^.]+)$/) || [])[1];
+    const mime = BINARY[(ext || '').toLowerCase()];
+    if (!mime) return { name: f.name, text: await f.text() };
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return { name: f.name, mime, base64: btoa(bin) };
+  }
 
   window.RA = {
     desktop: !!native,
+    readDropped,
     // user files: native Open/Save dialogs only (SANDBOX.md) -> {name, text} | null
     openTextFile: (purpose) => native ? native.fileOpenText(purpose) : browserOpen(ACCEPT[purpose]),
     saveTextFile: (purpose, defaultName, text) => native ? native.fileSaveText(purpose, defaultName, text) : browserSave(defaultName, text),

@@ -10,7 +10,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test test/*.test.js",
-    "e2e": "node dev/e2e-setup.js && node dev/e2e-live.js && node dev/e2e-demo.js",
+    "e2e": "node dev/e2e-setup.js && node dev/e2e-live.js && node dev/e2e-demo.js && node dev/make-plans.js && node dev/e2e-plan.js",
     "dist:mac": "node dev/build-help.js && electron-builder --mac --publish never",
     "dist:win": "node dev/build-help.js && electron-builder --win --publish never",
     "dist": "node dev/build-help.js && electron-builder --mac --win --publish never",

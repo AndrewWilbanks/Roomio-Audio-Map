@@ -5,6 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs'), path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+const VENDOR = path.join(ROOT, 'renderer', 'vendor');
 const files = [];
 (function walk(d) {
   for (const f of fs.readdirSync(d)) {
@@ -15,7 +16,7 @@ const files = [];
 })(path.join(ROOT, 'main')); (function walk(d) {
   for (const f of fs.readdirSync(d)) {
     const p = path.join(d, f);
-    if (fs.statSync(p).isDirectory()) walk(p);
+    if (fs.statSync(p).isDirectory()) { if (p !== VENDOR) walk(p); }   // vendored libraries: see the tests at the end
     else if (/\.(js|html)$/.test(f)) files.push(p);
   }
 })(path.join(ROOT, 'renderer'));
@@ -77,4 +78,23 @@ test('store build configs drop the updater and use the sandbox entitlements', ()
 test('in-app help is up to date with README.md', () => {
   const r = require('child_process').spawnSync(process.execPath, [path.join(ROOT, 'dev/build-help.js'), '--check']);   // test-only
   assert.strictEqual(r.status, 0, String(r.stderr));
+});
+
+// Vendored third-party code (renderer/vendor/, today only pdf.js) is pinned byte-for-byte and
+// checked for the forbidden APIs. Its internal Blob URLs (images/fonts) don't touch user files.
+test('vendored libraries match their pinned SHA-256 manifest', () => {
+  const crypto = require('crypto');
+  for (const lib of fs.readdirSync(VENDOR)) {
+    const dir = path.join(VENDOR, lib);
+    const manifest = JSON.parse(src(path.join(dir, 'MANIFEST.json')));
+    const found = [];
+    (function walk(d) { for (const f of fs.readdirSync(d)) { const p = path.join(d, f); if (fs.statSync(p).isDirectory()) walk(p); else if (f !== 'MANIFEST.json') found.push(path.relative(dir, p).split(path.sep).join('/')); } })(dir);
+    assert.deepStrictEqual(found.sort(), Object.keys(manifest).sort(), `${lib}: files added or removed — run node dev/vendor-manifest.js`);
+    for (const f of found) assert.strictEqual(crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, f))).digest('hex'), manifest[f], `${lib}/${f} changed`);
+  }
+});
+test('vendored libraries use no processes, servers, app launching or login items', () => {
+  const bad = [];
+  (function walk(d) { for (const f of fs.readdirSync(d)) { const p = path.join(d, f); if (fs.statSync(p).isDirectory()) walk(p); else if (/\.(m?js|html)$/.test(f) && /child_process|createServer|WebSocketServer|\.listen\(|execSync|osascript|powershell|setLoginItemSettings|globalShortcut/i.test(src(p))) bad.push(rel(p)); } })(VENDOR);
+  assert.deepStrictEqual(bad, []);
 });

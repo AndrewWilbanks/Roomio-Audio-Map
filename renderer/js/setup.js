@@ -1,5 +1,5 @@
 /* setup.js — first-run / new-venue wizard.
-   1 import auditorium (JSON or CSV, validated)  2 place FOH (click or type), optional stage
+   1 import auditorium (JSON/CSV, or a floor plan: plan-import.js)  2 place FOH (click or type), optional stage
    3 Smaart connection + Test connection          4 review, save -> venue.json */
 (function () {
   const $ = (s) => document.querySelector(s);
@@ -42,9 +42,24 @@
   function updateNext() { $('#btn-next').disabled = !canContinue(); }
 
   // ------------------------------------------------------------ step 1: import
-  // file = { name, text } from the native Open dialog, or a dropped File (drag-and-drop is allowed)
+  // file = { name, text } or { name, mime, base64 } from the native Open dialog, or a dropped File
+  // (drag-and-drop is allowed). Floor plans (PDF/PNG/JPEG/SVG) go to plan-import.js.
   async function loadFile(file) {
-    const text = typeof file.text === 'string' ? file.text : await file.text();
+    if (typeof file.text !== 'string' && !file.base64) file = await RA.readDropped(file);
+    if (PlanImport.isPlanFile(file)) {
+      $('#csv-opts').hidden = true; $('#result').hidden = true;
+      state.auditorium = null; state.room = null; updateNext();
+      try {
+        await PlanImport.open(file, { toast, onReady: (auditorium) => {
+          state.source = { name: file.name, kind: 'plan' };
+          parseObject(auditorium);
+          $('#result').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        } });
+      } catch (e) { toast(e.message); }
+      return;
+    }
+    PlanImport.close();
+    const text = file.text;
     const kind = /\.csv$|\.txt$/i.test(file.name) || (!/^\s*[{[]/.test(text) && /,/.test(text)) ? 'csv' : 'json';
     state.source = { name: file.name, kind, text };
     if (kind === 'csv') {
@@ -54,9 +69,20 @@
     parseSource();
   }
 
+  // a floor plan's seats: validated like any auditorium file
+  function parseObject(a) {
+    const r = Auditorium.parseAuditoriumJson(a);
+    state.auditorium = r.ok ? r.auditorium : null;
+    state.room = r.ok ? Auditorium.normalise(r.auditorium) : null;
+    state.foh = null;
+    mapReady = null;
+    renderResult(r);
+    updateNext();
+  }
+
   function parseSource() {
     const src = state.source;
-    if (!src) return;
+    if (!src || src.kind === 'plan') return;
     const r = src.kind === 'csv'
       ? Auditorium.parseAuditoriumCsv(src.text, { name: $('#csv-name').value.trim() || 'Imported room', units: $('#csv-units').value, yAxis: $('#csv-yaxis').value })
       : Auditorium.parseAuditoriumJson(src.text);
@@ -71,7 +97,7 @@
     const box = $('#result');
     box.hidden = false;
     const src = state.source;
-    let html = `<div class="result-file">${esc(src.name)} <span class="muted">· ${src.kind.toUpperCase()}</span></div>`;
+    let html = `<div class="result-file">${esc(src.name)} <span class="muted">· ${src.kind === 'plan' ? 'seats found in the floor plan' : src.kind.toUpperCase()}</span></div>`;
     if (r.ok) {
       const R = state.room, a = r.auditorium;
       const xs = a.seats.map(s => s.x), ys = a.seats.map(s => s.y);
@@ -224,6 +250,7 @@
     } catch (e) { toast('Could not load the example: ' + e.message); return; }
     state.source = { name: 'example-hall.auditorium.json', kind: 'json', text };
     $('#csv-opts').hidden = true;
+    PlanImport.close();
     parseSource();
   }
 
