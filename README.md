@@ -16,7 +16,7 @@ See what every seat in your room hears. Roomio draws your auditorium seat by sea
 1. Download **`Roomio-<version>-mac-universal.dmg`** from the [Releases page](https://github.com/AndrewWilbanks/Roomio-Audio-Map/releases/latest).
 2. Open the `.dmg` and drag **Roomio** into **Applications**.
 3. Open it from Applications.
-   *If macOS says it "can't be opened because Apple cannot check it":* right-click the app → **Open** → **Open**. You only need to do this once. (Builds that are signed and notarized open normally.)
+   *If macOS says "Roomio" Not Opened / Apple could not verify it:* click **Done**, open **System Settings → Privacy & Security**, scroll to **Security** and click **Open Anyway** next to "Roomio was blocked", then **Open Anyway** again and enter your Mac password. You only need to do this once. (On macOS 14 and earlier, right-click the app → **Open** → **Open** also works. Builds that are signed and notarized open normally.)
 
 ### Windows 10 / 11
 

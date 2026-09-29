@@ -21,7 +21,7 @@ and `latest.yml` from the release).
 
 | | Without | With |
 |---|---|---|
-| **macOS** | Gatekeeper warning on first open (right-click → Open). **Auto-update cannot install** — Squirrel.Mac requires a signed app | Opens normally; auto-update works |
+| **macOS** | Blocked on first open; users must go to System Settings → Privacy & Security → **Open Anyway** (macOS 15 removed the right-click → Open bypass). **Auto-update cannot install** — Squirrel.Mac requires a signed app | Opens normally; auto-update works |
 | **Windows** | SmartScreen warning ("More info → Run anyway"). Auto-update still works | No warning once the certificate has reputation |
 
 macOS needs an **Apple Developer ID Application** certificate (Apple Developer Program) and
