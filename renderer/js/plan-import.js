@@ -92,7 +92,7 @@
     panel.hidden = false;
     $('#plan-file').textContent = `${file.name} · ${isPdf(file) ? 'PDF' : isSvg(file) ? 'SVG' : 'picture'} floor plan`;
     if (!$('#plan-name').dataset.typed) $('#plan-name').value = file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');   // until the user types one
-    S = { file, canvas: null, pdf: null, pageNo: 1, seats: [], stage: null, box: null, mode: 'box', view: null, measure: null, measuredUpp: null, drag: null };
+    S = { file, canvas: null, pdf: null, pageNo: 1, seats: [], stage: null, box: null, area: null, mode: 'box', view: null, measure: null, measuredUpp: null, drag: null };
     busy('Opening the plan…', 0.1);
     try {
       if (isPdf(file)) {
@@ -121,7 +121,7 @@
 
   async function changePage(n) {
     busy(`Rendering page ${n}…`, 0.2);
-    try { S.canvas = await renderPdfPage(S.pdf, n); S.pageNo = n; S.pixels = null; S.seats = []; S.box = null; S.stage = null; }
+    try { S.canvas = await renderPdfPage(S.pdf, n); S.pageNo = n; S.pixels = null; S.seats = []; S.box = null; S.area = null; S.stage = null; }
     finally { busy(null); }
     fitView(); updateUi();
   }
@@ -135,7 +135,7 @@
     if (!S.box) return;
     busy('Finding seats…', 0);
     try {
-      const r = await PlanDetect.detectSeats(pixels(), S.box, { sensitivity: +$('#plan-sens').value, onProgress: (p) => busy('Finding seats…', p) });
+      const r = await PlanDetect.detectSeats(pixels(), S.box, { sensitivity: +$('#plan-sens').value, area: S.area, onProgress: (p) => busy('Finding seats…', p) });
       if (r.error) { hooks.toast && hooks.toast(r.error); S.seats = []; }
       else S.seats = r.seats.map(s => ({ x: s.x, y: s.y }));
       S.stage = null;                         // re-guess for the new set
@@ -160,10 +160,22 @@
   }
 
   // ---------------------------------------------------------------- build the auditorium
-  function backgroundImage() {
-    const k = fitScale(S.canvas.width, S.canvas.height, MAX_BG_PX);
-    const c = toCanvas(S.canvas.width * k, S.canvas.height * k);
-    c.getContext('2d').drawImage(S.canvas, 0, 0, c.width, c.height);
+  // the part of the plan that becomes the map background: the seating area (or the seats), plus
+  // the stage, with a margin so walls stay in view — not the whole sheet with its title block
+  function cropRegion() {
+    const pts = S.labels.map(l => ({ x: l.x, y: l.y }));
+    let x0, y0, x1, y1;
+    if (S.area) { x0 = S.area.x; y0 = S.area.y; x1 = S.area.x + S.area.w; y1 = S.area.y + S.area.h; }
+    else { x0 = Math.min(...pts.map(p => p.x)); y0 = Math.min(...pts.map(p => p.y)); x1 = Math.max(...pts.map(p => p.x)); y1 = Math.max(...pts.map(p => p.y)); }
+    if (S.stage) { x0 = Math.min(x0, S.stage.x); y0 = Math.min(y0, S.stage.y); x1 = Math.max(x1, S.stage.x); y1 = Math.max(y1, S.stage.y); }
+    const pad = Math.max((S.pitchPx || 10) * 4, 0.08 * Math.max(x1 - x0, y1 - y0));
+    return clip({ x: Math.floor(x0 - pad), y: Math.floor(y0 - pad), w: Math.ceil(x1 - x0 + 2 * pad), h: Math.ceil(y1 - y0 + 2 * pad) });
+  }
+  function backgroundImage(r) {
+    const k = fitScale(r.w, r.h, MAX_BG_PX);
+    const c = toCanvas(r.w * k, r.h * k);
+    const g = c.getContext('2d'); g.imageSmoothingQuality = 'high';
+    g.drawImage(S.canvas, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
     let url = c.toDataURL('image/png');
     if (isImage(S.file) && /jpe?g/i.test(S.file.mime || S.file.name) || url.length > 10e6) url = c.toDataURL('image/jpeg', 0.85);   // photos/scans: JPEG
     return url;
@@ -172,14 +184,16 @@
     const upp = unitsPerPx();
     if (!upp) throw new Error('Set the seat spacing (or Measure a distance) first.');
     const units = $('#plan-units').value;
+    const crop = cropRegion();
     const r = (v) => Math.round(v * upp * 1000) / 1000;
-    const seats = S.labels.map(l => ({ id: l.id, section: l.section, row: l.row, seat: l.seat, x: r(l.x), y: r(l.y) }));
+    const X = (x) => r(x - crop.x), Y = (y) => r(y - crop.y);       // coordinates start at the crop's corner
+    const seats = S.labels.map(l => ({ id: l.id, section: l.section, row: l.row, seat: l.seat, x: X(l.x), y: Y(l.y) }));
     return {
       format: Auditorium.FORMAT, schemaVersion: Auditorium.SCHEMA_VERSION,
       name: $('#plan-name').value.trim() || 'Imported room', units, yAxis: 'down',
-      stage: S.stage ? { x: r(S.stage.x), y: r(S.stage.y), label: 'Stage' } : undefined,
+      stage: S.stage ? { x: X(S.stage.x), y: Y(S.stage.y), label: 'Stage' } : undefined,
       seats,
-      background: { image: backgroundImage(), x: 0, y: 0, width: r(S.canvas.width), height: r(S.canvas.height), opacity: 0.9 },
+      background: { image: backgroundImage(crop), x: 0, y: 0, width: r(crop.w), height: r(crop.h), opacity: 0.75 },
     };
   }
 
@@ -215,6 +229,14 @@
     g.drawImage(S.canvas, 0, 0);
     g.restore();
     const P = (p) => [v.x + p.x * v.k, v.y + p.y * v.k];
+    // seating area: everything outside it is dimmed (seats are only looked for inside)
+    const area = S.drag && S.drag.kind === 'area' ? S.drag.rect : S.area;
+    if (area) {
+      const [ax, ay] = P(area), aw = area.w * v.k, ah = area.h * v.k;
+      g.beginPath(); g.rect(0, 0, w, h); g.rect(ax, ay, aw, ah);
+      g.fillStyle = 'rgba(16, 21, 28, 0.38)'; g.fill('evenodd');
+      g.setLineDash([8, 5]); g.lineWidth = 2; g.strokeStyle = '#2f6fb0'; g.strokeRect(ax, ay, aw, ah); g.setLineDash([]);
+    }
     // seats
     const rDot = Math.max(2.5, Math.min(9, (S.pitchPx || 20) * v.k * 0.28));
     const secIdx = new Map();
@@ -278,7 +300,7 @@
     const p = toPlan(e);
     try { cv().setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointers */ }
     const pan = e.button === 1 || e.altKey || e.metaKey || e.shiftKey && S.mode !== 'box';
-    S.drag = { start: p, moved: false, kind: pan ? 'pan' : S.mode === 'box' ? 'box' : 'click', view: { ...S.view } };
+    S.drag = { start: p, moved: false, kind: pan ? 'pan' : S.mode === 'box' || S.mode === 'area' ? S.mode : 'click', view: { ...S.view } };
   }
   function onMove(e) {
     if (!S) return;
@@ -286,8 +308,8 @@
     if (S.measure && S.measure.a && !S.measure.b) { S.measure.hover = p; draw(); }
     const d = S.drag; if (!d) return;
     if (Math.hypot(p.sx - d.start.sx, p.sy - d.start.sy) > 4) d.moved = true;
-    if (d.kind === 'box') {
-      d.rect = { x: Math.min(d.start.x, p.x), y: Math.min(d.start.y, p.y), w: Math.abs(p.x - d.start.x), h: Math.abs(p.y - d.start.y) };
+    if (d.kind === 'box' || d.kind === 'area') {
+      d.rect = clip({ x: Math.min(d.start.x, p.x), y: Math.min(d.start.y, p.y), w: Math.abs(p.x - d.start.x), h: Math.abs(p.y - d.start.y) });
       draw();
     } else if (d.moved && (d.kind === 'pan' || d.kind === 'click')) {        // dragging the plan pans in every mode
       d.kind = 'pan';
@@ -301,6 +323,12 @@
     const d = S.drag, p = toPlan(e);
     S.drag = null;
     $('#plan-view').classList.remove('panning');
+    if (d.kind === 'area') {
+      const r = d.rect;
+      if (r && r.w * S.view.k >= 20 && r.h * S.view.k >= 20) setArea(r);
+      else { draw(); hooks.toast && hooks.toast('Drag a rectangle around the seating'); }
+      return;
+    }
     if (d.kind === 'box') {
       const r = d.rect;
       if (r && r.w * S.view.k >= 6 && r.h * S.view.k >= 6) { S.box = r; updateUi(); find(); }
@@ -328,6 +356,21 @@
     }
   }
 
+  // keep a rectangle on the picture
+  function clip(r) {
+    const x0 = Math.max(0, r.x), y0 = Math.max(0, r.y);
+    const x1 = Math.min(S.canvas.width, r.x + r.w), y1 = Math.min(S.canvas.height, r.y + r.h);
+    return { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0) };
+  }
+  // seating area set/cleared: seats outside it go, and a boxed sample is searched again
+  function setArea(r) {
+    S.area = r;
+    if (S.box) { updateUi(); find(); return; }
+    if (r) { S.seats = S.seats.filter(q => q.x >= r.x && q.x <= r.x + r.w && q.y >= r.y && q.y <= r.y + r.h); relabel(); }
+    setMode('box'); updateUi();
+    if (r) hooks.toast && hooks.toast('Seating area set — now box one seat');
+  }
+
   // ---------------------------------------------------------------- UI state
   let busyOn = false;
   function busy(text, p) {
@@ -344,7 +387,8 @@
     $('#plan-count').textContent = n ? `${n} seat${n === 1 ? '' : 's'}` : '';
     if (!busyOn) {
       $('#plan-find').disabled = !S.box;
-      $('#plan-clear').disabled = !n && !S.box;
+      $('#plan-clear').disabled = !n && !S.box && !S.area;
+      $('#plan-area-x').hidden = !S.area;
       $('#plan-use').disabled = !n || !upp;
     }
     const secs = S.labels ? new Set(S.labels.map(l => l.section)).size : 0;
@@ -354,9 +398,9 @@
       $('#plan-scale-note').textContent = `${S.measuredUpp ? 'Measured' : 'From seat spacing'}: plan is ${W.toFixed(0)} × ${H.toFixed(0)} ${units}`;
     } else $('#plan-scale-note').textContent = '';
     $('#plan-summary').textContent = n ? `${secs} section${secs === 1 ? '' : 's'} · ${rows} rows. Sections run A, B, C… from the audience's left; row 1 is nearest the stage.` : '';
-    const g = { box: !!S.box, fix: n > 0, scale: n > 0 && (!!S.measuredUpp || !!$('#plan-pitch').dataset.typed) };
+    const g = { area: !!S.area, box: !!S.box, fix: n > 0, scale: n > 0 && (!!S.measuredUpp || !!$('#plan-pitch').dataset.typed) };
     const now = !g.box ? 'box' : !g.fix ? 'box' : 'fix';
-    document.querySelectorAll('.plan-guide li').forEach(li => { li.classList.toggle('done', !!g[li.dataset.g] && li.dataset.g !== 'fix'); li.classList.toggle('now', li.dataset.g === now); });
+    document.querySelectorAll('.plan-guide li').forEach(li => { li.classList.toggle('done', !!g[li.dataset.g] && li.dataset.g !== 'fix'); li.classList.toggle('now', li.dataset.g === now || (li.dataset.g === 'area' && S.mode === 'area')); });
     draw();
   }
 
@@ -389,7 +433,8 @@
     $('#plan-zfit').onclick = () => S && fitView();
     $('#plan-find').onclick = () => S && find();
     $('#plan-sens').onchange = () => { if (S && S.box) find(); };
-    $('#plan-clear').onclick = () => { if (!S) return; S.seats = []; S.labels = null; S.box = null; S.stage = null; setMode('box'); updateUi(); };
+    $('#plan-clear').onclick = () => { if (!S) return; S.seats = []; S.labels = null; S.box = null; S.area = null; S.stage = null; setMode('box'); updateUi(); };
+    $('#plan-area-x').onclick = () => { if (S) { S.area = null; if (S.box) find(); else updateUi(); } };
     $('#plan-page').onchange = (e) => S && changePage(+e.target.value);
     $('#plan-units').onchange = onUnits;
     $('#plan-pitch').oninput = () => { $('#plan-pitch').dataset.typed = '1'; if (S) { S.measuredUpp = null; updateUi(); } };

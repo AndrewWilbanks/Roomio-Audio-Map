@@ -135,6 +135,7 @@
 
   // ---------------------------------------------------------------- detection
   // opts.sensitivity 0..1 (higher finds more, and more false hits); opts.onProgress(0..1)
+  // opts.area {x, y, w, h}: only look for seats inside this rectangle (image pixels)
   async function detectSeats(img, box, opts = {}) {
     const sens = Math.max(0, Math.min(1, opts.sensitivity == null ? 0.5 : opts.sensitivity));
     const side = Math.max(4, Math.max(box.w, box.h));
@@ -149,15 +150,20 @@
     const tMean = tv.reduce((a, b) => a + b, 0) / K;
     const tc = tv.map(v => v - tMean), tNorm = Math.sqrt(tc.reduce((a, b) => a + b * b, 0)) || 1;
     if (tMean < 0.01) return { seats: [], work: { scale }, error: 'The box looks empty — draw it tightly around one seat.' };
+    const A = opts.area && opts.area.w > 0 && opts.area.h > 0
+      ? { x0: opts.area.x * scale, y0: opts.area.y * scale, x1: (opts.area.x + opts.area.w) * scale, y1: (opts.area.y + opts.area.h) * scale } : null;
+    const inside = (x, y) => !A || (x >= A.x0 && x <= A.x1 && y >= A.y0 && y <= A.y1);
 
     // 1. ring-projection score on a 2-px grid
     const stride = R >= 6 ? 2 : 1;
     const GW = Math.ceil(W / stride), GH = Math.ceil(H / stride);
     const score = new Float32Array(GW * GH);
     const yieldEvery = Math.max(1, Math.floor(GH / 40));
-    for (let gy = 0; gy < GH; gy++) {
+    const gx0 = A ? Math.max(0, Math.floor(A.x0 / stride)) : 0, gx1 = A ? Math.min(GW - 1, Math.ceil(A.x1 / stride)) : GW - 1;
+    const gy0 = A ? Math.max(0, Math.floor(A.y0 / stride)) : 0, gy1 = A ? Math.min(GH - 1, Math.ceil(A.y1 / stride)) : GH - 1;
+    for (let gy = gy0; gy <= gy1; gy++) {
       const y = gy * stride;
-      for (let gx = 0; gx < GW; gx++) {
+      for (let gx = gx0; gx <= gx1; gx++) {
         const x = gx * stride;
         const v = ringVector(ink, W, H, x, y, rings);
         let m = 0; for (let k = 0; k < K; k++) m += v[k]; m /= K;
@@ -167,7 +173,7 @@
         const corr = e > 1e-12 ? dot / (Math.sqrt(e) * tNorm) : 0;
         score[gy * GW + gx] = corr * Math.exp(-Math.abs(Math.log(m / tMean)));
       }
-      if (opts.onProgress && gy % yieldEvery === 0) { opts.onProgress(0.7 * gy / GH); await tick(); }
+      if (opts.onProgress && gy % yieldEvery === 0) { opts.onProgress(0.7 * (gy - gy0) / (gy1 - gy0 + 1)); await tick(); }
     }
     // local maxima above the ring threshold
     const ringMin = 0.62 - 0.22 * sens;
@@ -218,7 +224,7 @@
         const kk = (ba + dk + temps.length) % temps.length, v = ncc(ink, W, H, bx, by, temps[kk]);
         if (v > best) { best = v; ba = kk; }
       }
-      if (best < nccMin) return null;
+      if (best < nccMin || !inside(bx, by)) return null;
       const amount = inkAt(bx, by) / sampleInk;
       return amount > 0.6 && amount < 1.7 ? { x: bx, y: by, angle: temps[ba].angle, score: best } : null;
     };
@@ -252,7 +258,7 @@
         const d = Math.hypot(q.x - p.x, q.y - p.y);
         if (q === p || d > pitch * 1.3) continue;
         const px = Math.round(2 * q.x - p.x), py = Math.round(2 * q.y - p.y);    // one more step along p → q
-        if (px < 0 || py < 0 || px >= W || py >= H) continue;
+        if (px < 0 || py < 0 || px >= W || py >= H || !inside(px, py)) continue;
         if (kept.concat(added).some(o => Math.hypot(o.x - px, o.y - py) < crowd)) continue;
         const h = fit(px, py);
         if (h && !kept.concat(added).some(o => Math.hypot(o.x - h.x, o.y - h.y) < crowd)) added.push(h);

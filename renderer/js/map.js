@@ -22,7 +22,7 @@
     U = (room.pitch || 15) / 15;
     SEAT = 11.5 * U;
     full = room.viewBox.slice();
-    svg = el('svg', { preserveAspectRatio: 'xMidYMid meet', role: 'img', 'aria-label': 'Seat map' });
+    svg = el('svg', { preserveAspectRatio: 'xMidYMid meet', role: 'img', 'aria-label': 'Seat map', class: room.background ? 'has-bg' : '' });
     svg.style.setProperty('--u', U);          // CSS sizes below scale with the venue (see styles.css)
     vp = el('g', {});
     if (room.background) {

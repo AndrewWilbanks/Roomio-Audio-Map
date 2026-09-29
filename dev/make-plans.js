@@ -40,5 +40,8 @@ objs.forEach((o, i) => { offs.push(Buffer.byteLength(pdf)); pdf += `${i + 1} 0 o
 const xref = Buffer.byteLength(pdf);
 pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offs.map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('') + `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
 fs.writeFileSync(path.join(out, 'fan-hall.pdf'), pdf);
-fs.writeFileSync(path.join(out, 'fan-hall.truth.json'), JSON.stringify({ seats: plan.truth.length, sample: plan.truth[Math.floor(plan.truth.length / 2) + 3], sz: 18, W, H }));
+const mid = plan.truth.filter(q => q.section === 1), xs = mid.map(q => q.x), ys = mid.map(q => q.y);
+const centreArea = { x: Math.min(...xs) - 12, y: Math.min(...ys) - 12, w: Math.max(...xs) - Math.min(...xs) + 24, h: Math.max(...ys) - Math.min(...ys) + 24 };
+const centre = plan.truth.filter(q => q.x >= centreArea.x && q.x <= centreArea.x + centreArea.w && q.y >= centreArea.y && q.y <= centreArea.y + centreArea.h).length;
+fs.writeFileSync(path.join(out, 'fan-hall.truth.json'), JSON.stringify({ seats: plan.truth.length, sample: plan.truth[Math.floor(plan.truth.length / 2) + 3], sz: 18, W, H, centreArea, centre }));
 console.log('wrote', out, plan.truth.length, 'seats');

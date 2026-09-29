@@ -110,6 +110,9 @@ html[data-theme="dark"] .status-pill.connecting{color:#f0c07e;}
 html[data-theme="dark"] .map-bg{filter:invert(1);opacity:.42;}
 .seat{stroke:var(--seat-stroke);stroke-width:calc(.6 * var(--u,1));cursor:pointer;transition:fill .25s;}
 .seat.empty{fill:var(--seat-empty);}
+/* over a floor-plan drawing, unmeasured seats need a solid outline to stand out from its linework */
+.has-bg .seat{stroke:var(--ink);stroke-width:calc(.9 * var(--u,1));}
+.has-bg .seat.empty{fill:var(--surface);}
 .seat.est{opacity:.62;stroke-dasharray:calc(1.6 * var(--u,1)) calc(1.2 * var(--u,1));}
 .seat:hover{stroke:var(--ink);stroke-width:calc(1.4 * var(--u,1));}
 .seat.sel{stroke:var(--ink);stroke-width:calc(2.2 * var(--u,1));}

@@ -65,11 +65,12 @@ The first time you open the app (or after **Reset Venue**) a four-step setup app
 
 Any top-down plan works: an architect's PDF or CAD export, a seating chart, a scan or a photo of a printed plan (taken straight on). Multi-page PDFs have a page picker.
 
-1. **Box a seat** — zoom in (scroll, or **+**) and drag a box around one seat. Roomio then finds every seat drawn the same way, at any angle, usually in a few seconds. Everything runs on your computer; the plan isn't sent anywhere.
-2. **Check the dots** — each section gets its own colour and letter. With **Add / remove**, click a dot to remove it or click an empty spot to add a seat. Drag to pan in any mode. Too few seats found? Raise **Sensitivity**; false ones? Lower it — or box a different, cleaner seat.
-3. **Stage** — Roomio works out where the stage is from the way the rows face (shown as **STAGE**). If it's wrong, choose **Stage** and click the right spot — rows renumber from it.
-4. **Scale** — pick feet or metres, then either type the **seat spacing** (centre to centre; 1.75 ft / 0.53 m is typical) or choose **Measure**, click two points a known distance apart (a wall, a stage edge) and type the distance.
-5. **Use these seats** — the result is checked like any auditorium file, and the plan is kept as the map's background.
+1. *(Optional)* **Seating area** — drag a rectangle around the seats. Roomio then only looks inside it, so nothing gets picked up in the lobby, on the stage or in a legend. **Remove area** searches the whole plan again; seats you add by hand can go anywhere.
+2. **Box a seat** — zoom in (scroll, or **+**) and drag a box around one seat. Roomio then finds every seat drawn the same way, at any angle, usually in a few seconds. Everything runs on your computer; the plan isn't sent anywhere.
+3. **Check the dots** — each section gets its own colour and letter. With **Add / remove**, click a dot to remove it or click an empty spot to add a seat. Drag to pan in any mode. Too few seats found? Raise **Sensitivity**; false ones? Lower it — or box a different, cleaner seat.
+4. **Stage** — Roomio works out where the stage is from the way the rows face (shown as **STAGE**). If it's wrong, choose **Stage** and click the right spot — rows renumber from it.
+5. **Scale** — pick feet or metres, then either type the **seat spacing** (centre to centre; 1.75 ft / 0.53 m is typical) or choose **Measure**, click two points a known distance apart (a wall, a stage edge) and type the distance.
+6. **Use these seats** — the result is checked like any auditorium file, and the plan is kept as the map's background.
 
 Seats are labelled *section-row-seat* (`B-4-12`): sections A, B, C… from the audience's left, row 1 nearest the stage, seat 1 on the audience's left. A photo taken from inside the room (at an angle) won't work — use a plan, or trace over one.
 

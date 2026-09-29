@@ -24,6 +24,9 @@ async function main() {
   const results = [];
   const cases = ['png', 'svg', 'pdf'].map(ext => ({ name: `fan-hall.${ext}`, file: path.join(DIR, `fan-hall.${ext}`), truth: JSON.parse(fs.readFileSync(path.join(DIR, 'fan-hall.truth.json'), 'utf8')) }))
     .map(c => ({ ...c, srcW: c.truth.W, sample: c.truth.sample, size: c.truth.sz * 1.2, count: c.truth.seats, units: 'px' }));
+  // the same PNG with a seating area around the centre section only (dragged like a user)
+  { const t = JSON.parse(fs.readFileSync(path.join(DIR, 'fan-hall.truth.json'), 'utf8'));
+    cases.push({ name: 'fan-hall.png + seating area', file: path.join(DIR, 'fan-hall.png'), srcW: t.W, sample: t.sample, size: t.sz * 1.2, count: t.centre, area: t.centreArea }); }
   if (FH_SVG) {
     const fh = JSON.parse(fs.readFileSync(FH_SEATS, 'utf8')).seats;
     const s = fh.find(q => q.id === 'C-10-8') || fh[Math.floor(fh.length / 2)];
@@ -53,6 +56,17 @@ async function main() {
       cv.dispatchEvent(new PointerEvent('pointerup', P(${box.x + box.w}, ${box.y + box.h})));`);
     await sleep(300);
     for (let i = 0; i < 300; i++) { if (await js(`return document.getElementById('plan-busy').hidden`)) break; await sleep(200); }
+    if (c.area) {                        // then drag the seating area; the boxed sample is searched again
+      const a = { x: c.area.x * k, y: c.area.y * k, w: c.area.w * k, h: c.area.h * k };
+      await js(`document.querySelector('[data-mode="area"]').click(); document.getElementById('plan-zfit').click();
+        const S = PlanImport._state(), cv = document.getElementById('plan-canvas'), r = cv.getBoundingClientRect();
+        const P = (x, y) => ({ clientX: r.left + S.view.x + x * S.view.k, clientY: r.top + S.view.y + y * S.view.k, pointerId: 1, bubbles: true, button: 0, isPrimary: true });
+        cv.dispatchEvent(new PointerEvent('pointerdown', P(${a.x}, ${a.y})));
+        cv.dispatchEvent(new PointerEvent('pointermove', P(${a.x + a.w}, ${a.y + a.h})));
+        cv.dispatchEvent(new PointerEvent('pointerup', P(${a.x + a.w}, ${a.y + a.h})));`);
+      await sleep(300);
+      for (let i = 0; i < 300; i++) { if (await js(`return document.getElementById('plan-busy').hidden`)) break; await sleep(200); }
+    }
     const found = await js(`const S = PlanImport._state(); return { seats: S.seats.map(s => ({ x: s.x, y: s.y })), labels: (S.labels || []).map(l => l.section + '|' + l.row) }`);
     const pts = found.seats.map(s => ({ x: s.x / k, y: s.y / k }));
     if (process.env.PLAN_DEBUG && c.points) {        // score distributions of true vs false hits

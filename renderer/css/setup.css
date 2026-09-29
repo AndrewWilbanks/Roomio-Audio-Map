@@ -52,7 +52,7 @@ html[data-theme="dark"] .warns li{color:#f0c07e;}
 .plan-sens input{width:110px;}
 .plan-view{position:relative;height:min(58vh,580px);min-height:340px;border:1px solid var(--line2);border-radius:10px;overflow:hidden;background:#fff;touch-action:none;}
 .plan-view canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
-.plan-view.mode-box canvas,.plan-view.mode-measure canvas,.plan-view.mode-stage canvas{cursor:crosshair;}
+.plan-view.mode-box canvas,.plan-view.mode-area canvas,.plan-view.mode-measure canvas,.plan-view.mode-stage canvas{cursor:crosshair;}
 .plan-view.mode-edit canvas{cursor:copy;}
 .plan-view.panning canvas{cursor:grabbing;}
 .plan-busy{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:color-mix(in srgb,var(--paper) 72%,transparent);font-weight:800;}

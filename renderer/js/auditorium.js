@@ -187,8 +187,13 @@
       const b = a.background;
       bg = { href: b.image, x: b.x, y: flip === 1 ? b.y : -(b.y + b.height), width: b.width, height: b.height, opacity: b.opacity };
     }
-    const xs = seats.map(s => s.x).concat(stage ? [stage.x] : [], bg ? [bg.x, bg.x + bg.width] : []);
-    const ys = seats.map(s => s.y).concat(stage ? [stage.y] : [], bg ? [bg.y, bg.y + bg.height] : []);
+    // the view fits the seats (and stage); a background only widens it when it's roughly the room —
+    // a whole drawing sheet (title block, other floors…) would leave the seats as specks
+    const sx = seats.map(s => s.x), sy = seats.map(s => s.y);
+    const seatArea = Math.max(pitch * pitch, (Math.max(...sx) - Math.min(...sx) + pitch) * (Math.max(...sy) - Math.min(...sy) + pitch));
+    const bgFits = bg && bg.width * bg.height <= seatArea * 4;
+    const xs = sx.concat(stage ? [stage.x] : [], bgFits ? [bg.x, bg.x + bg.width] : []);
+    const ys = sy.concat(stage ? [stage.y] : [], bgFits ? [bg.y, bg.y + bg.height] : []);
     const pad = pitch * 3;
     const minX = Math.min(...xs) - pad, minY = Math.min(...ys) - pad;
     const viewBox = [minX, minY, Math.max(...xs) + pad - minX, Math.max(...ys) + pad - minY];

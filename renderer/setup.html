@@ -72,12 +72,14 @@
               <span class="plan-count" id="plan-count"></span>
             </div>
             <ol class="plan-guide">
+              <li data-g="area"><i>Optional:</i> <b>Seating area</b> — drag a rectangle around the seats so Roomio only looks there (not in the lobby, stage or legend).</li>
               <li data-g="box"><b>Draw a box around one seat</b> on the plan (drag). Roomio finds every seat drawn the same way, at any angle.</li>
               <li data-g="fix"><b>Check the dots.</b> <i>Add / remove</i> fixes misses; <i>Stage</i> moves the stage (row 1 is nearest it).</li>
               <li data-g="scale"><b>Set the scale</b> — the seat spacing below, or <i>Measure</i> any known distance.</li>
             </ol>
             <div class="plan-tools">
               <div class="chips" id="plan-modes">
+                <button class="chip" data-mode="area" title="Only look for seats inside a rectangle you draw">Seating area</button>
                 <button class="chip on" data-mode="box">Box a seat</button>
                 <button class="chip" data-mode="edit">Add / remove</button>
                 <button class="chip" data-mode="stage">Stage</button>
@@ -85,6 +87,7 @@
               </div>
               <label class="plan-sens" title="Higher finds more seats (and more false ones)">Sensitivity <input type="range" id="plan-sens" min="0" max="1" step="0.05" value="0.5"></label>
               <button class="btn btn-secondary btn-sm" id="plan-find" disabled>Find seats</button>
+              <button class="btn btn-secondary btn-sm" id="plan-area-x" hidden title="Look for seats on the whole plan again">Remove area</button>
               <button class="btn btn-secondary btn-sm" id="plan-clear" disabled>Clear</button>
             </div>
             <div class="plan-view" id="plan-view">

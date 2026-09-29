@@ -59,3 +59,17 @@ test('an empty box is reported instead of matching blank paper', async () => {
   assert.match(r.error, /empty/);
   assert.strictEqual(r.seats.length, 0);
 });
+
+test('seating area: only seats inside the drawn rectangle are found', async () => {
+  const { img, truth } = S.fanPlan({ sz: 18 });
+  const mid = truth.filter(q => q.section === 1);                        // the centre section
+  const pad = 12, xs = mid.map(q => q.x), ys = mid.map(q => q.y);
+  const area = { x: Math.min(...xs) - pad, y: Math.min(...ys) - pad, w: Math.max(...xs) - Math.min(...xs) + 2 * pad, h: Math.max(...ys) - Math.min(...ys) + 2 * pad };
+  const inArea = truth.filter(q => q.x >= area.x && q.x <= area.x + area.w && q.y >= area.y && q.y <= area.y + area.h);
+  const r = await P.detectSeats(img, boxAround(truth[103], 18), { sensitivity: 0.5, area });
+  assert.ok(r.seats.every(q => q.x >= area.x && q.x <= area.x + area.w && q.y >= area.y && q.y <= area.y + area.h), 'nothing outside the area');
+  const s = score(inArea, r.seats, 7);
+  assert.ok(s.found >= inArea.length * 0.97, `found ${s.found}/${inArea.length} inside`);
+  assert.strictEqual(s.falseHits, 0);
+  assert.ok(r.seats.length < truth.length * 0.6, 'the side sections were left out');
+});
