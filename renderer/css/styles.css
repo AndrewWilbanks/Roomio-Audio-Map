@@ -132,6 +132,9 @@ html[data-theme="dark"] .map-bg{filter:invert(1);opacity:.42;}
 .booth-marker{cursor:pointer;}
 .booth-marker rect{fill:var(--ink);stroke:var(--sky);stroke-width:calc(1.6 * var(--u,1));}
 .booth-marker text{fill:var(--cream);font-family:Montserrat,sans-serif;font-weight:900;font-size:calc(9px * var(--u,1));letter-spacing:.06em;}
+.booth-handle{fill:var(--surface);stroke:var(--skydk);cursor:nwse-resize;}
+.mode-boothsize .booth-marker{cursor:move;}
+.mode-boothsize .booth-marker rect{stroke:var(--skydk);stroke-dasharray:calc(3 * var(--u,1)) calc(2 * var(--u,1));}
 .booth-ring{fill:none;stroke:var(--sky);stroke-width:calc(1.2 * var(--u,1));stroke-dasharray:calc(3 * var(--u,1));opacity:.8;pointer-events:none;}
 .sec-label{font-family:Montserrat,sans-serif;font-weight:800;font-size:calc(11px * var(--u,1));letter-spacing:.08em;text-transform:uppercase;fill:var(--ink3);paint-order:stroke;stroke:var(--map-bg);stroke-width:calc(3px * var(--u,1));pointer-events:none;}
 .stage-label{font-family:'Playfair Display',serif;font-weight:800;font-size:calc(16px * var(--u,1));fill:var(--ink3);pointer-events:none;letter-spacing:.2em;}

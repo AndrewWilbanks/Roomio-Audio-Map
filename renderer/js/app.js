@@ -42,11 +42,17 @@
     SeatMap.on('areaDrawn', onAreaDrawn);
     SeatMap.on('drawHint', toast);
     SeatMap.on('drawChange', () => renderDrawBanner());
+    // Place booth: click where it goes, then drag its corner to size it (centre = the FOH mic)
     SeatMap.on('boothPlaced', (p) => {
-      S().booth = { x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 };
-      Store.saveSettings(); SeatMap.setBooth(S().booth); setMapMode('view'); toast('Booth location saved');
+      S().booth = { ...S().booth, x: Math.round(p.x * 1000) / 1000, y: Math.round(p.y * 1000) / 1000 };   // keeps its size
+      Store.saveSettings(); SeatMap.setBooth(S().booth);
     });
-    SeatMap.on('boothClick', () => toast('FOH booth · use “Place booth” to move it'));
+    SeatMap.on('boothChanged', (b) => {
+      const r = (v) => Math.round(v * 1000) / 1000;
+      S().booth = { ...S().booth, x: r(b.x), y: r(b.y), w: r(b.w), d: r(b.d) };
+      Store.saveSettings();
+    });
+    SeatMap.on('boothClick', () => setMapMode('booth'));
     SeatMap.on('tooltip', tooltipHtml);
 
     buildMetricPicker();
@@ -766,17 +772,18 @@
   function setMapMode(mode) {
     if (mode !== 'draw') redrawId = null;
     mapMode = mode;
-    SeatMap.setMode(mode);
+    SeatMap.setMode(mode === 'booth' ? 'boothSize' : mode);
     const ban = $('#map-banner');
     $('#btn-booth').classList.toggle('on', mode === 'booth');
     $('#btn-edit').classList.toggle('on', mode === 'edit' || mode === 'draw');
     if (mode === 'view') { ban.classList.remove('show'); return; }
     if (mode === 'draw') { renderDrawBanner(); ban.classList.add('show'); return; }
     ban.innerHTML = mode === 'booth'
-      ? '<span>📍 Click the map where the FOH mix position is.</span><button class="btn btn-sm" id="ban-done">Cancel</button>'
+      ? '<span>📍 Click where the FOH mix position is, then drag the booth\'s corner to make it bigger or smaller (drag the booth to move it).</span><button class="btn btn-sm" id="ban-reset">Reset size</button><button class="btn btn-sm btn-primary" id="ban-done">Done</button>'
       : '<span>✏️ Editing areas — click an area to rename, reorder, redraw or remove it.</span><button class="btn btn-sm btn-primary" id="ban-draw">Draw area</button><button class="btn btn-sm" id="ban-done">Done</button>';
     ban.classList.add('show');
     $('#ban-done').onclick = () => setMapMode('view');
+    if ($('#ban-reset')) $('#ban-reset').onclick = () => { const b = { ...S().booth }; delete b.w; delete b.d; S().booth = b; Store.saveSettings(); SeatMap.setBooth(b); };
     if ($('#ban-draw')) $('#ban-draw').onclick = () => setMapMode('draw');
   }
 

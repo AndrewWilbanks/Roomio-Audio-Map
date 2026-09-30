@@ -55,7 +55,7 @@ The first time you open the app (or after **Reset Venue**) a four-step setup app
 **Just looking?** Press **Try the demo** on the first step: a sample hall with pre-measured areas and simulated Smaart data, so you can see everything working without Smaart. It never touches your own venue — leave it with **Exit demo**.
 
 1. **Auditorium** — drop in a **floor plan** of the room (PDF, PNG, JPEG or SVG) and outline its areas — see [Start from a floor plan](#start-from-a-floor-plan). Or use an auditorium file (`.json`), or a seat list (`.csv`, or an older seat-by-seat `.json`) — each section becomes an area, and big sections are split into blocks of up to 40 seats. The app checks the file and either shows a summary or lists exactly what to fix, with line numbers. No file yet? Try **Use the example hall**, or **Import a venue profile…** if you exported one from another computer. See [the file format](#5-the-auditorium-file) below.
-2. **FOH position** — click the map where your FOH measurement mic is, or type its x / y (and optional height) in your file's units. If your file has no stage, you can place it here too.
+2. **FOH position** — click the map where your FOH measurement mic is, or type its x / y (and optional height) in your file's units. Drag the booth's corner handle to make it bigger or smaller (it stays centred on the mic). If your file has no stage, you can place it here too.
 3. **Smaart** — host, port, Smaart version, and the API password if you set one. Press **Test connection**; you'll get a plain answer such as *"Connected and logged in to Smaart"* or *"Nothing is listening at localhost:26000 — start Smaart and enable its API."* You can skip this and connect later.
 4. **Save** — the venue opens.
 
@@ -114,6 +114,8 @@ Each area keeps its readings and response; the map then shows *live FOH + that a
 
 ### Edit areas
 
+**FOH booth:** **Place booth** in the top bar (or click the booth): click where it goes, then drag its corner handle to make it bigger or smaller, or drag the booth to move it. **Reset size** goes back to the standard marker.
+
 **Edit areas** in the top bar: **Draw area** to add one (click its corners as in setup), or click an area to rename it, move it earlier or later in the walk-through, **Redraw outline**, or remove it. Renaming and redrawing keep its measurements.
 
 ### Data
@@ -156,7 +158,7 @@ Setup writes this for you from a floor plan; you only need it to make or edit a 
 | `units` | no | `px` (default), `ft`, `in`, `m`, `cm`, `mm` |
 | `yAxis` | no | `down` (default — screen/SVG style) or `up` (CAD style) |
 | `stage` | no | Centre front of the stage |
-| `foh` | no | Suggested FOH position (you can move it in setup) |
+| `foh` | no | Suggested FOH position (you can move it in setup); `w` / `d` = booth width and depth (set by dragging in the app) |
 | `background` | no | A floor-plan image under the areas: `{ "image": "data:image/png;base64,…", "x", "y", "width", "height", "opacity" }` (SVG, PNG, JPEG or WebP, up to 25 MB) |
 
 The complete JSON Schema is in [`docs/auditorium.schema.json`](docs/auditorium.schema.json); an example is in [`docs/examples/`](docs/examples/).

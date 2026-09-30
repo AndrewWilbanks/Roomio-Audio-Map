@@ -82,7 +82,7 @@
               "string",
               "number"
             ],
-            "description": "Unique label, e.g. \"front-left\". Readings are stored against it — keep it stable."
+            "description": "Unique label, e.g. \"front-left\". Readings are stored against it \u2014 keep it stable."
           },
           "name": {
             "type": "string",
@@ -185,6 +185,16 @@
         },
         "z": {
           "type": "number"
+        },
+        "w": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Booth width (optional; with d, the booth is drawn to scale, centred on x,y)."
+        },
+        "d": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Booth depth (optional)."
         }
       },
       "description": "Suggested FOH mix position (can be moved in the app)."

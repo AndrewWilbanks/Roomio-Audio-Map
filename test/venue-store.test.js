@@ -102,3 +102,11 @@ test('v1 venue (seats) upgrades once to areas: readings follow their seats, orig
   const left = v.auditorium.areas[0].points;
   assert.ok(seats.filter(q => q.section === 'Left').every(q => A.pointInPolygon(q.x, q.y, left)));
 });
+
+test('FOH booth size: saved with the venue, validated as a pair', () => {
+  store.venue.save({ ...venue('Sized'), foh: { x: 0, y: 20, w: 3, d: 2 } });
+  assert.deepStrictEqual(store.venue.get().foh, { x: 0, y: 20, w: 3, d: 2 });
+  assert.throws(() => store.venue.save({ ...venue(), foh: { x: 0, y: 20, w: 3 } }), /width and depth/);
+  const A = require('../renderer/js/auditorium.js');
+  assert.deepStrictEqual(A.parseAuditoriumJson({ ...hall, foh: { x: 1, y: 2, w: 4, d: 2.5 } }).auditorium.foh, { x: 1, y: 2, w: 4, d: 2.5 });
+});

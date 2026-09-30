@@ -12,7 +12,8 @@
   let full, view;                         // [x,y,w,h]
   let areaEls = new Map();
   let areaList = [];
-  let mode = 'view';                      // 'view' | 'booth' | 'edit' | 'draw' | 'pick'
+  let mode = 'view';                      // 'view' | 'booth' | 'edit' | 'draw' | 'pick' | 'boothSize'
+  let booth = null;                       // {x, y, w?, d?} as last set
   let selected = null;
   let drawing = [];                       // corners of the area being drawn
   let hoverPt = null;
@@ -40,9 +41,11 @@
     drawLayer = el('g', { class: 'draw-layer' });
     boothG = el('g', { class: 'booth-marker' });
     boothG.appendChild(el('circle', { r: 28 * U, class: 'booth-ring', 'stroke-width': 1.2 * U }));
-    boothG.appendChild(el('rect', { x: -17 * U, y: -10 * U, width: 34 * U, height: 20 * U, rx: 5 * U, 'stroke-width': 1.6 * U }));
-    const t = el('text', { x: 0, y: 3.4 * U, 'text-anchor': 'middle', 'font-size': 9 * U }); t.textContent = 'FOH';
+    boothG.appendChild(el('rect', { 'stroke-width': 1.6 * U }));
+    const t = el('text', { x: 0, 'text-anchor': 'middle', 'dominant-baseline': 'central' }); t.textContent = 'FOH';
     boothG.appendChild(t);
+    // boothSize mode: drag the corner handle to resize (about the centre), the body to move
+    boothG.appendChild(el('circle', { class: 'booth-handle', r: 1 }));
     vp.append(areaLayer, labelLayer, stageEl, guideLayer, drawLayer, boothG);
     svg.appendChild(vp);
     wrap.appendChild(svg);
@@ -97,9 +100,31 @@
     }
   }
 
+  // b = {x, y, w?, d?} — with a width and depth the booth is drawn at its real size (room units),
+  // otherwise as a standard marker
   function setBooth(b) {
+    booth = b ? { ...b } : null;
     boothG.style.display = b ? '' : 'none';
-    if (b) boothG.setAttribute('transform', `translate(${b.x} ${b.y})`);
+    if (!b) return;
+    boothG.setAttribute('transform', `translate(${b.x} ${b.y})`);
+    const sized = b.w > 0 && b.d > 0;
+    const w = sized ? b.w : 34 * U, d = sized ? b.d : 20 * U;
+    const r = boothG.querySelector('rect'), t = boothG.querySelector('text');
+    r.setAttribute('x', -w / 2); r.setAttribute('y', -d / 2); r.setAttribute('width', w); r.setAttribute('height', d);
+    r.setAttribute('rx', Math.min(5 * U, w * 0.15, d * 0.15));
+    boothG.querySelector('.booth-ring').style.display = sized ? 'none' : '';
+    t.style.fontSize = `${sized ? Math.max(U * 2, Math.min(9 * U, w * 0.28, d * 0.6)) : 9 * U}px`;
+    t.setAttribute('y', 0);
+    placeHandle();
+  }
+  const boothSize = () => booth && booth.w > 0 && booth.d > 0 ? { w: booth.w, d: booth.d } : { w: 34 * U, d: 20 * U };
+  function placeHandle() {
+    const h = boothG.querySelector('.booth-handle');
+    if (!h || !booth) return;
+    const { w, d } = boothSize(), upx = unitsPerPx();
+    h.setAttribute('cx', w / 2); h.setAttribute('cy', d / 2);
+    h.setAttribute('r', 7 * upx); h.setAttribute('stroke-width', 2 * upx);
+    h.style.display = mode === 'boothSize' ? '' : 'none';
   }
 
   function select(id, pulse) {
@@ -119,6 +144,8 @@
     wrap.classList.toggle('mode-booth', m === 'booth' || m === 'pick');
     wrap.classList.toggle('mode-edit', m === 'edit');
     wrap.classList.toggle('mode-draw', m === 'draw');
+    wrap.classList.toggle('mode-boothsize', m === 'boothSize');
+    placeHandle();
   }
 
   // a line or points drawn over the map (setup's Measure tool). pts = [[x,y], ...] or null
@@ -157,7 +184,7 @@
   }, true);
 
   // ---- view / pan / zoom ----
-  function applyView() { svg.setAttribute('viewBox', view.map(v => v.toFixed(3)).join(' ')); if (mode === 'draw') renderDraw(); }
+  function applyView() { svg.setAttribute('viewBox', view.map(v => v.toFixed(3)).join(' ')); if (mode === 'draw') renderDraw(); if (mode === 'boothSize') placeHandle(); }
 
   function toDrawing(clientX, clientY) {
     const pt = svg.createSVGPoint(); pt.x = clientX; pt.y = clientY;
@@ -200,6 +227,10 @@
       try { svg.setPointerCapture(e.pointerId); } catch (err) { /* synthetic/ended pointer */ }
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       moved = false;
+      if (mode === 'boothSize' && pointers.size === 1 && booth && e.target.closest && e.target.closest('.booth-marker')) {
+        drag = { booth: e.target.classList.contains('booth-handle') ? 'size' : 'move', start: toDrawing(e.clientX, e.clientY), b: { ...booth, ...boothSize() }, x: e.clientX, y: e.clientY };
+        return;
+      }
       if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, view: view.slice() };
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
@@ -214,6 +245,14 @@
         const d = Math.hypot(a.x - b.x, a.y - b.y);
         view = pinch.view.slice(); zoomAt(d / pinch.d, pinch.mid.x, pinch.mid.y);
         moved = true;
+        return;
+      }
+      if (drag && drag.booth) {
+        const p = toDrawing(e.clientX, e.clientY), b = drag.b;
+        const nb = drag.booth === 'size'
+          ? { ...b, w: Math.max(4 * U, 2 * Math.abs(p.x - b.x)), d: Math.max(3 * U, 2 * Math.abs(p.y - b.y)) }   // about the centre (the mic)
+          : { ...b, x: b.x + p.x - drag.start.x, y: b.y + p.y - drag.start.y };
+        moved = true; setBooth(nb); emit('boothChange', nb);
         return;
       }
       if (drag) {
@@ -233,6 +272,7 @@
       pointers.delete(e.pointerId);
       wrap.classList.remove('dragging');
       if (pointers.size < 2) pinch = null;
+      if (drag && drag.booth) { if (moved) emit('boothChanged', { ...booth }); drag = null; return; }
       if (drag && !moved && e.type === 'pointerup') {
         const dbl = e.timeStamp - lastUp < 350; lastUp = e.timeStamp;
         click(e, dbl);
@@ -266,6 +306,7 @@
     }
     if (mode === 'pick') { emit('pick', p); return; }
     if (mode === 'booth') { emit('boothPlaced', p); return; }
+    if (mode === 'boothSize') { if (!(e.target.closest && e.target.closest('.booth-marker'))) emit('boothPlaced', p); return; }   // click elsewhere: move it there
     const onBooth = e.target.closest && e.target.closest('.booth-marker');
     const id = onBooth ? null : areaAt(e);
     if (onBooth && !id) { emit('boothClick'); return; }

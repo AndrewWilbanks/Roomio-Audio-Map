@@ -64,6 +64,7 @@ function validateVenue(v) {
   const r = Auditorium.parseAuditoriumJson(v.auditorium);
   if (!r.ok) return 'Auditorium: ' + r.errors[0];
   if (v.foh && (typeof v.foh.x !== 'number' || typeof v.foh.y !== 'number')) return 'FOH position must have numeric x and y.';
+  if (v.foh && (v.foh.w !== undefined || v.foh.d !== undefined) && !(v.foh.w > 0 && v.foh.d > 0)) return 'FOH booth size needs a positive width and depth.';
   return null;
 }
 

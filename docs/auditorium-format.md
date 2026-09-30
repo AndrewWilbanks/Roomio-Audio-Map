@@ -40,7 +40,7 @@ Use any unit (feet, metres, drawing units) as long as it's consistent.
 | `units` | no | `px` (default), `ft`, `in`, `m`, `cm`, `mm` |
 | `yAxis` | no | `down` (default, screen/SVG) or `up` (CAD) |
 | `stage` | no | Centre front of the stage (shown for orientation) |
-| `foh` | no | Suggested FOH position |
+| `foh` | no | Suggested FOH position; add `w` and `d` (booth width and depth) to draw the booth to scale |
 | `background` | no | Floor plan image: `{ "image": "data:image/png;base64,…", "x", "y", "width", "height", "opacity" }` (SVG, PNG, JPEG or WebP, up to 25 MB) |
 
 ## Seat lists

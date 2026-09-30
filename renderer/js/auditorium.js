@@ -278,7 +278,7 @@
       format: FORMAT, schemaVersion: SCHEMA_VERSION, name: a.name.trim(), units: a.units || 'px', yAxis: a.yAxis || 'down',
       areas,
       stage: a.stage ? clean({ x: +a.stage.x, y: +a.stage.y, label: a.stage.label || 'Stage' }) : undefined,
-      foh: a.foh ? { x: +a.foh.x, y: +a.foh.y } : undefined,
+      foh: a.foh ? clean({ x: +a.foh.x, y: +a.foh.y, w: +a.foh.w > 0 && +a.foh.d > 0 ? +a.foh.w : undefined, d: +a.foh.w > 0 && +a.foh.d > 0 ? +a.foh.d : undefined }) : undefined,
       background: a.background ? clean({ image: a.background.image, x: +a.background.x, y: +a.background.y, width: +a.background.width, height: +a.background.height, opacity: a.background.opacity }) : undefined,
     });
     return result(errors, warnings, auditorium, seatToArea ? { seatToArea } : null);

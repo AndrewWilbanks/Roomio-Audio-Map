@@ -79,7 +79,7 @@
     const foh = venue.foh || parsed.auditorium.foh || null;
     const prefs = merge(defaultPrefs(), venue.preferences);
     settings = {
-      booth: foh ? { x: foh.x, y: foh.y * room.flip } : { ...room.suggestedFoh },
+      booth: foh ? { x: foh.x, y: foh.y * room.flip, ...(foh.z != null ? { z: foh.z } : {}), ...(foh.w > 0 && foh.d > 0 ? { w: foh.w, d: foh.d } : {}) } : { ...room.suggestedFoh },
       manualBooth: prefs.manualBooth,
       smaart: merge(defaultSmaart(), migrateSmaart(venue.smaart)),
       ui: prefs.ui,
@@ -95,10 +95,16 @@
       ...venue,
       schemaVersion: SCHEMA_VERSION,
       updatedAt: new Date().toISOString(),
-      foh: { x: Math.round(settings.booth.x * 10) / 10, y: Math.round(settings.booth.y * room.flip * 10) / 10 },
+      foh: fohOut(),
       smaart: settings.smaart,
       preferences: { ui: settings.ui, manualBooth: settings.manualBooth },
     };
+  }
+
+  // FOH in file coordinates: position (+ height) and, when set, the booth's width and depth
+  function fohOut() {
+    const b = settings.booth, r = (v) => Math.round(v * 1000) / 1000;
+    return { x: r(b.x), y: r(b.y * room.flip), ...(b.z != null ? { z: b.z } : {}), ...(b.w > 0 && b.d > 0 ? { w: r(b.w), d: r(b.d) } : {}) };
   }
 
   function saveSettings() {

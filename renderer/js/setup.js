@@ -129,14 +129,14 @@
       [...wrap.children].forEach(c => { if (!c.classList.contains('map-tools')) c.remove(); });
       SeatMap.init(wrap, R);
       SeatMap.setAreas(R.areas);
-      SeatMap.setMode('booth');
+      SeatMap.setMode(state.placing === 'stage' ? 'booth' : 'boothSize');
       mapReady = R;
     }
     showFoh();
   }
 
   const round = (v) => Math.round(v * 1000) / 1000;
-  const toMap = (p) => ({ x: p.x, y: p.y * state.room.flip });
+  const toMap = (p) => ({ ...p, y: p.y * state.room.flip });
 
   function showFoh() {
     SeatMap.setBooth(toMap(state.foh));
@@ -158,17 +158,19 @@
       toast('Stage placed — now click FOH if it moved');
       return;
     }
-    state.foh = { ...file, z: state.foh && state.foh.z };
-    if (state.foh.z == null) delete state.foh.z;
+    const prev = state.foh || {};                 // clicking moves the booth; its height and size stay
+    state.foh = { ...file, z: prev.z, w: prev.w, d: prev.d };
+    for (const k of ['z', 'w', 'd']) if (state.foh[k] == null) delete state.foh[k];
     showFoh();
   }
 
   function setPlacing(what) {
     state.placing = what;
     document.querySelectorAll('[data-place]').forEach(b => b.classList.toggle('on', b.dataset.place === what));
+    if (state.step === 2) SeatMap.setMode(what === 'stage' ? 'booth' : 'boothSize');
     $('#place-hint').textContent = what === 'stage'
       ? 'Click the centre front of the stage. It\'s shown on the map for orientation.'
-      : 'Click the map where the FOH mix position (the Smaart measurement mic at the booth) is. Or type the position:';
+      : 'Click the map where the FOH mix position (the Smaart measurement mic at the booth) is, then drag the booth\'s corner to make it bigger or smaller. Or type the position:';
   }
 
   function onCoordInput() {
@@ -176,8 +178,10 @@
     if (!isFinite(x) || !isFinite(y)) { $('#nav-err').textContent = 'FOH x and y must be numbers.'; state.foh = null; updateNext(); return; }
     if (z !== '' && !isFinite(parseFloat(z))) { $('#nav-err').textContent = 'FOH height must be a number or empty.'; return; }
     $('#nav-err').textContent = '';
+    const prev = state.foh || {};
     state.foh = { x, y };
     if (z !== '') state.foh.z = parseFloat(z);
+    if (prev.w > 0) { state.foh.w = prev.w; state.foh.d = prev.d; }
     SeatMap.setBooth(toMap(state.foh));
     updateNext();
   }
@@ -209,7 +213,7 @@
     const f = state.foh;
     $('#review').innerHTML = `
       <dt>Venue</dt><dd><b>${esc(a.name)}</b> · ${a.areas.length} area${a.areas.length === 1 ? '' : 's'}</dd>
-      <dt>FOH</dt><dd>x ${f.x}, y ${f.y}${f.z != null ? `, z ${f.z}` : ''} ${esc(a.units)}</dd>
+      <dt>FOH</dt><dd>x ${f.x}, y ${f.y}${f.z != null ? `, z ${f.z}` : ''} ${esc(a.units)}${f.w ? ` · booth ${f.w} × ${f.d} ${esc(a.units)}` : ''}</dd>
       <dt>Stage</dt><dd>${a.stage ? `x ${a.stage.x}, y ${a.stage.y}` : '<span class="muted">not set</span>'}</dd>
       <dt>Smaart</dt><dd>ws://${esc(c.host)}:${c.port}${esc(c.path)} ${$('#sm-pw').value ? '· password saved (encrypted)' : ''}
         ${state.tested ? (state.tested.ok ? '<span class="badge live">tested OK</span>' : '<span class="badge stale">last test failed</span>') : '<span class="badge none">not tested</span>'}</dd>`;
@@ -285,6 +289,13 @@
     SeatMap.on('boothPlaced', onMapClick);
     document.querySelectorAll('[data-place]').forEach(b => b.onclick = () => setPlacing(b.dataset.place));
     ['#foh-x', '#foh-y', '#foh-z'].forEach(id => $(id).addEventListener('input', onCoordInput));
+    // dragging the booth's corner (size) or body (position) on the step 2 map
+    SeatMap.on('boothChanged', (b) => {
+      if (state.step !== 2 || !state.room) return;
+      const f = state.room.flip;
+      state.foh = { ...state.foh, x: round(b.x), y: round(b.y * f), w: round(b.w), d: round(b.d) };
+      $('#foh-x').value = state.foh.x; $('#foh-y').value = state.foh.y;
+    });
     $('#zoom-in').onclick = () => SeatMap.zoomBy(1.4);
     $('#zoom-out').onclick = () => SeatMap.zoomBy(1 / 1.4);
     $('#zoom-fit').onclick = () => SeatMap.fit();
