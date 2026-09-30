@@ -95,27 +95,94 @@
     return id;
   }
 
-  // v1 seat list -> one area per section, outlined around its seats (half a seat spacing out)
+  // offset a convex polygon outward by d (true offset: every edge moves d along its normal)
+  function offsetConvex(hull, d) {
+    const n = hull.length, ccw = polygonArea(hull) > 0 ? 1 : -1;
+    const lines = hull.map((p, i) => {
+      const q = hull[(i + 1) % n], ex = q[0] - p[0], ey = q[1] - p[1], L = Math.hypot(ex, ey) || 1;
+      const nx = ccw * ey / L, ny = -ccw * ex / L;                 // outward normal
+      return { px: p[0] + nx * d, py: p[1] + ny * d, dx: ex / L, dy: ey / L };
+    });
+    return lines.map((l1, i) => {
+      const l0 = lines[(i - 1 + n) % n], den = l0.dx * l1.dy - l0.dy * l1.dx;
+      if (Math.abs(den) < 1e-9) return [l1.px, l1.py];
+      const t = ((l1.px - l0.px) * l1.dy - (l1.py - l0.py) * l1.dx) / den;
+      return [l0.px + l0.dx * t, l0.py + l0.dy * t];
+    });
+  }
+
+  // Split a group of seats into compact blocks of at most `max` seats: cut the group across its
+  // longer direction, in proportion, until every piece is small enough (balanced k-d split).
+  // Cuts run along the seating grid (the direction seats line up in) and land in a gap between
+  // rows, so neighbouring blocks never share a row and their outlines don't overlap.
+  function gridAngle(list) {
+    // direction to each seat's nearest neighbour, folded to 0..90°: rows and columns agree
+    const sample = list.length > 300 ? list.filter((_, i) => i % Math.ceil(list.length / 300) === 0) : list;
+    const angs = [];
+    for (const p of sample) {
+      let best = null, bd = Infinity;
+      for (const q of list) { if (q === p) continue; const d = Math.hypot(q.x - p.x, q.y - p.y); if (d > 0 && d < bd) { bd = d; best = q; } }
+      if (best) angs.push(((Math.atan2(best.y - p.y, best.x - p.x) % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2));
+    }
+    // circular mean on the 90° circle
+    let cx = 0, cy = 0; for (const t of angs) { cx += Math.cos(4 * t); cy += Math.sin(4 * t); }
+    return Math.atan2(cy, cx) / 4;
+  }
+  function splitSeats(list, max, grid) {
+    if (list.length <= max) return [list];
+    if (grid === undefined) grid = gridAngle(list);
+    const k = Math.ceil(list.length / max), k1 = Math.floor(k / 2);
+    const n1 = Math.round(list.length * k1 / k);
+    // the longer of the two grid directions
+    const ext = (t) => { const ux = Math.cos(t), uy = Math.sin(t); const v = list.map(s => s.x * ux + s.y * uy); return Math.max(...v) - Math.min(...v); };
+    const th = ext(grid) >= ext(grid + Math.PI / 2) ? grid : grid + Math.PI / 2;
+    const ux = Math.cos(th), uy = Math.sin(th);
+    const sorted = list.map(s => ({ s, t: s.x * ux + s.y * uy })).sort((a, b) => a.t - b.t);
+    // cut in the widest gap near the proportional split point (between two rows, not through one)
+    const w = Math.max(1, Math.round(list.length * 0.18));
+    let cut = n1, gap = -1;
+    for (let i = Math.max(1, n1 - w); i <= Math.min(list.length - 1, n1 + w); i++) {
+      const g = sorted[i].t - sorted[i - 1].t - Math.abs(i - n1) * 1e-6;   // prefer the closest of equal gaps
+      if (g > gap) { gap = g; cut = i; }
+    }
+    const L = sorted.slice(0, cut).map(o => o.s), R = sorted.slice(cut).map(o => o.s);
+    return splitSeats(L, max, grid).concat(splitSeats(R, max, grid));
+  }
+
+  // v1 seat list -> areas: one per section, and sections bigger than `maxSeats` split into blocks
+  // of at most that many seats (named "C 1", "C 2"… from the front). Each outline hugs its seats with
+  // just under half a seat spacing to spare, so neighbouring blocks don't overlap.
   // -> { areas, seatToArea: {seatId: areaId} }   (file coordinates, unchanged axis)
-  function seatsToAreas(seats) {
-    const pitch = seatPitch(seats), pad = pitch * 0.6;
+  const MAX_SEATS_PER_AREA = 40;
+  function seatsToAreas(seats, opts = {}) {
+    const max = opts.maxSeats || MAX_SEATS_PER_AREA;
+    const pitch = seatPitch(seats), pad = pitch * 0.45;
+    const stage = opts.stage;
     const by = new Map();
     for (const s of seats) { const k = s.section || 'Main'; if (!by.has(k)) by.set(k, []); by.get(k).push(s); }
     const used = new Set(), areas = [], seatToArea = {};
-    for (const [name, list] of by) {
-      const id = slug(name, used);
-      let hull = convexHull(list.map(s => [+s.x, +s.y]));
-      if (hull.length < 3 || Math.abs(polygonArea(hull)) < pitch * pitch * 0.5) {
-        const xs = list.map(s => +s.x), ys = list.map(s => +s.y);
-        const x0 = Math.min(...xs) - pad, x1 = Math.max(...xs) + pad, y0 = Math.min(...ys) - pad, y1 = Math.max(...ys) + pad;
-        hull = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-      } else {
-        const c = polygonCentroid(hull);
-        hull = hull.map(([x, y]) => { const dx = x - c.x, dy = y - c.y, d = Math.hypot(dx, dy) || 1; return [x + dx / d * pad, y + dy / d * pad]; });
+    for (const [section, all] of by) {
+      let blocks = splitSeats(all.map(s => ({ ...s, x: +s.x, y: +s.y })), max);
+      if (blocks.length > 1) {
+        // front to back (nearest the stage first), then across
+        const c = (b) => ({ x: b.reduce((t, s) => t + s.x, 0) / b.length, y: b.reduce((t, s) => t + s.y, 0) / b.length });
+        const key = stage ? (b) => { const p = c(b); return Math.hypot(p.x - stage.x, p.y - stage.y); } : (b) => c(b).y;
+        const band = pitch * 3;
+        blocks = blocks.map(b => ({ b, k: key(b), x: c(b).x })).sort((p, q) => Math.round(p.k / band) - Math.round(q.k / band) || p.x - q.x).map(o => o.b);
       }
-      const zs = list.map(s => s.z).filter(isNum);
-      areas.push(clean({ id, name, points: hull.map(([x, y]) => [r3(x), r3(y)]), z: zs.length ? r3(median(zs)) : undefined }));
-      for (const s of list) seatToArea[String(s.id)] = id;
+      blocks.forEach((list, bi) => {
+        const name = blocks.length > 1 ? `${section} ${bi + 1}` : section;
+        const id = slug(name, used);
+        let hull = convexHull(list.map(s => [s.x, s.y]));
+        if (hull.length < 3 || Math.abs(polygonArea(hull)) < pitch * pitch * 0.5) {
+          const xs = list.map(s => s.x), ys = list.map(s => s.y);
+          const x0 = Math.min(...xs) - pad, x1 = Math.max(...xs) + pad, y0 = Math.min(...ys) - pad, y1 = Math.max(...ys) + pad;
+          hull = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+        } else hull = offsetConvex(hull, pad);
+        const zs = list.map(s => s.z).filter(isNum);
+        areas.push(clean({ id, name, points: hull.map(([x, y]) => [r3(x), r3(y)]), z: zs.length ? r3(median(zs)) : undefined }));
+        for (const s of list) seatToArea[String(s.id)] = id;
+      });
     }
     return { areas, seatToArea };
   }
@@ -184,8 +251,9 @@
         });
         if (!errors.length) {
           const seats = a.seats.map(s => ({ id: String(s.id), x: +numOrNumeric(s.x), y: +numOrNumeric(s.y), z: s.z == null ? undefined : +numOrNumeric(s.z), section: s.section }));
-          ({ areas, seatToArea } = seatsToAreas(seats));
-          warnings.push(`${seats.length} seat${seats.length === 1 ? '' : 's'} grouped into ${areas.length} area${areas.length === 1 ? '' : 's'} (one per section). Rename, redraw or add areas later with Edit areas.`);
+          const stage = a.stage && isNum(numOrNumeric(a.stage.x)) && isNum(numOrNumeric(a.stage.y)) ? { x: +a.stage.x, y: +a.stage.y } : null;
+          ({ areas, seatToArea } = seatsToAreas(seats, { stage }));
+          warnings.push(`${seats.length} seat${seats.length === 1 ? '' : 's'} grouped into ${areas.length} area${areas.length === 1 ? '' : 's'} (by section, at most ${MAX_SEATS_PER_AREA} seats each). Rename, redraw or add areas later with Edit areas.`);
         }
       }
     }
@@ -297,6 +365,14 @@
     };
   }
 
-  return { FORMAT, SCHEMA_VERSION, UNITS, parseAuditoriumJson, parseAuditoriumCsv, normalise, seatsToAreas,
+  // the next free default name: "Area 4" (never repeats one that's in use)
+  function nextAreaName(areas, base = 'Area') {
+    const names = new Set(areas.map(a => String(a.name).toLowerCase()));
+    let n = areas.length + 1;
+    while (names.has(`${base} ${n}`.toLowerCase())) n++;
+    return `${base} ${n}`;
+  }
+
+  return { FORMAT, SCHEMA_VERSION, UNITS, MAX_SEATS_PER_AREA, parseAuditoriumJson, parseAuditoriumCsv, normalise, seatsToAreas, nextAreaName,
     polygonArea, polygonCentroid, pointInPolygon, labelPoint, slug };
 });

@@ -6,7 +6,7 @@ PNG, JPEG or SVG): in setup you click the corners of each area and Roomio writes
 (see the README, *Start from a floor plan*). To make the file yourself, give it either:
 
 - a **JSON auditorium file** (`*.auditorium.json`, version 2) — format below, schema in [`auditorium.schema.json`](auditorium.schema.json), or
-- a **seat list** — a CSV with columns `seat,x,y,z`, or a version-1 JSON file — which is grouped into one area per section.
+- a **seat list** — a CSV with columns `seat,x,y,z`, or a version-1 JSON file — which is grouped into areas by section, at most 40 seats each.
 
 Use any unit (feet, metres, drawing units) as long as it's consistent.
 
@@ -48,8 +48,9 @@ Use any unit (feet, metres, drawing units) as long as it's consistent.
 ### Version 1 JSON
 
 Files from Roomio 0.1.x list individual seats: `"schemaVersion": 1`, `"seats": [{ "id": "A-1-1", "section": "A", "x": 0, "y": 0, "z": 0 }]`.
-They still load: each `section` (default `Main`) becomes one area, outlined around its seats with
-half a seat's spacing to spare. Seat ids are remembered so readings taken at a seat follow it into
+They still load: each `section` (default `Main`) becomes an area, outlined around its seats with just
+under half a seat's spacing to spare. A section with more than 40 seats is split along its rows into
+blocks of at most 40 ("C 1", "C 2"… numbered from the stage back), so outlines never overlap. Seat ids are remembered so readings taken at a seat follow it into
 its area.
 
 ### CSV

@@ -810,7 +810,7 @@
       return;
     }
     openModal('Name this area', `
-      <label for="ae-name">Name</label><input id="ae-name" placeholder="e.g. Front Left, Balcony, Under balcony" value="Area ${seats.length + 1}">
+      <label for="ae-name">Name</label><input id="ae-name" placeholder="e.g. Front Left, Balcony, Under balcony" value="${esc(Auditorium.nextAreaName(seats))}">
       <p class="hint" style="margin-top:10px">It's measured and coloured as one spot. Its readings stay with it if you rename or redraw it later.</p>`,
       '<button class="btn btn-secondary btn-sm" data-close>Discard</button><button class="btn btn-primary btn-sm" id="ae-save">Add area</button>');
     const inp = $('#ae-name'); inp.focus(); inp.select();

@@ -143,7 +143,7 @@
   function reroom() { room = Auditorium.normalise(venue.auditorium); saveSettings(); return room; }
   function addArea(polyMap, name) {
     const used = new Set(venue.auditorium.areas.map(a => a.id));
-    const nm = (name || '').trim() || `Area ${venue.auditorium.areas.length + 1}`;
+    const nm = (name || '').trim() || Auditorium.nextAreaName(venue.auditorium.areas);
     const area = { id: Auditorium.slug(nm, used), name: nm, points: toFile(polyMap) };
     venue.auditorium.areas.push(area);
     reroom();

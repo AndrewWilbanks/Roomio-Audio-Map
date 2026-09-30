@@ -76,3 +76,30 @@ test('geometry helpers: point in polygon, L-shaped label point, y-up files flipp
   assert.strictEqual(R.flip, -1);
   assert.ok(R.stage.y < R.areas[0].y, 'stage above the area on screen');
 });
+
+test('big sections split into blocks of at most 40 seats that don\'t overlap, named front to back', () => {
+  // a 15 × 15 block of seats (225) facing a stage on the left, plus a small 3 × 4 section
+  const seats = [];
+  for (let r = 0; r < 15; r++) for (let k = 0; k < 15; k++) seats.push({ id: `C-${r}-${k}`, section: 'C', x: 10 + r * 3, y: k * 1.75 });
+  for (let r = 0; r < 3; r++) for (let k = 0; k < 4; k++) seats.push({ id: `E-${r}-${k}`, section: 'E', x: 10 + r * 3, y: 40 + k * 1.75 });
+  const r = A.parseAuditoriumJson({ name: 'Big', schemaVersion: 1, stage: { x: 0, y: 12 }, seats });
+  assert.ok(r.ok, r.errors.join('; '));
+  const count = {}; for (const id of Object.values(r.seatToArea)) count[id] = (count[id] || 0) + 1;
+  const c = r.auditorium.areas.filter(a => a.name.startsWith('C '));
+  assert.ok(c.length >= 6 && c.length <= 8, `${c.length} blocks for 225 seats`);
+  assert.ok(c.every(a => count[a.id] <= 40), 'no block over 40 seats');
+  assert.deepStrictEqual(r.auditorium.areas.filter(a => a.name === 'E').length, 1, 'small sections stay whole');
+  for (const s of seats) {
+    const inside = r.auditorium.areas.filter(a => A.pointInPolygon(s.x, s.y, a.points));
+    assert.deepStrictEqual(inside.map(a => a.id), [r.seatToArea[s.id]], `${s.id} is inside exactly its own area`);
+  }
+  const cx = (a) => a.points.reduce((t, p) => t + p[0], 0) / a.points.length;
+  assert.ok(cx(c[0]) <= cx(c[c.length - 1]), 'numbered from the stage outward');
+  assert.match(r.warnings[0], /at most 40 seats each/);
+});
+
+test('default area names never repeat', () => {
+  assert.strictEqual(A.nextAreaName([{ name: 'Area 1' }, { name: 'Area 3' }]), 'Area 4');
+  assert.strictEqual(A.nextAreaName([{ name: 'Area 3' }, { name: 'Area 2' }]), 'Area 4');
+  assert.strictEqual(A.nextAreaName([]), 'Area 1');
+});

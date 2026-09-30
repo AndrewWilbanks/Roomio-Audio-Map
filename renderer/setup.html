@@ -30,7 +30,7 @@
       <section class="card step" data-step="1">
         <div class="card-header"><div><div class="eyebrow">Step 1 of 4</div><h2 class="card-title">Import your auditorium</h2></div></div>
         <div class="card-body">
-          <p class="hint">Use a <b>floor plan</b> of the room (<b>PDF, PNG, JPEG or SVG</b>) and outline the areas you want to measure, or a Roomio auditorium file (<b>.json</b>). A seat list (<b>.csv</b> <code>seat,x,y</code>, or an older seat-by-seat .json) also works — each section becomes one area.</p>
+          <p class="hint">Use a <b>floor plan</b> of the room (<b>PDF, PNG, JPEG or SVG</b>) and outline the areas you want to measure, or a Roomio auditorium file (<b>.json</b>). A seat list (<b>.csv</b> <code>seat,x,y</code>, or an older seat-by-seat .json) also works — each section becomes an area (big sections are split into blocks of up to 40 seats).</p>
           <div class="drop" id="drop" role="button" tabindex="0" aria-label="Choose an auditorium file">
             <div class="drop-t">Drop a file here, or <u>choose a file</u></div>
             <div class="drop-s">Floor plan: .pdf · .png · .jpg · .svg &nbsp;·&nbsp; Auditorium file: .json · seat list .csv</div>
@@ -52,7 +52,7 @@
     { "id": "centre", "name": "Centre", "points": [[-6, 10], [6, 10], [6, 30], [-6, 30]] }
   ]
 }</pre>
-              <p class="hint">Each area is an outline — its corners as <code>[x, y]</code> pairs. A seat list works too: CSV <code>seat,x,y,z</code> (labels like <code>A-12-4</code> give section A), or an older version-1 file with <code>"seats"</code>; each section becomes one area. Full details are in the README.</p>
+              <p class="hint">Each area is an outline — its corners as <code>[x, y]</code> pairs. A seat list works too: CSV <code>seat,x,y,z</code> (labels like <code>A-12-4</code> give section A), or an older version-1 file with <code>"seats"</code>; each section becomes an area, split into blocks of up to 40 seats. Full details are in the README.</p>
             </details>
           </div>
 

@@ -161,7 +161,7 @@
   }
   function onAreaDrawn(pts) {
     const used = new Set(S.areas.map(a => a.id));
-    const name = `Area ${S.areas.length + 1}`;
+    const name = Auditorium.nextAreaName(S.areas);
     const a = { id: Auditorium.slug(name, used), name, poly: pts };
     S.areas.push(a); S.selected = a.id;
     showAreas();
@@ -205,7 +205,7 @@
       inp.oninput = () => { const a = S.areas.find(x => x.id === inp.dataset.name); if (a) { a.name = inp.value; SeatMap.setAreas(mapAreas()); SeatMap.select(S.selected); } };
       inp.onfocus = () => { S.selected = inp.dataset.name; SeatMap.select(S.selected); box.querySelectorAll('.plan-area').forEach(r => r.classList.toggle('sel', r.dataset.id === S.selected)); };
       inp.onkeydown = (e) => { if (e.key === 'Enter') inp.blur(); };
-      inp.onblur = () => { const a = S.areas.find(x => x.id === inp.dataset.name); if (a && !a.name.trim()) { a.name = `Area ${S.areas.indexOf(a) + 1}`; inp.value = a.name; SeatMap.setAreas(mapAreas()); } };
+      inp.onblur = () => { const a = S.areas.find(x => x.id === inp.dataset.name); if (a && !a.name.trim()) { a.name = Auditorium.nextAreaName(S.areas.filter(x => x !== a)); inp.value = a.name; SeatMap.setAreas(mapAreas()); } };
     });
     box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { S.areas = S.areas.filter(a => a.id !== b.dataset.del); if (S.selected === b.dataset.del) S.selected = null; showAreas(); });
     box.querySelectorAll('[data-up]').forEach(b => b.onclick = () => { const i = S.areas.findIndex(a => a.id === b.dataset.up); if (i > 0) { [S.areas[i - 1], S.areas[i]] = [S.areas[i], S.areas[i - 1]]; showAreas(); } });

@@ -54,7 +54,7 @@ The first time you open the app (or after **Reset Venue**) a four-step setup app
 
 **Just looking?** Press **Try the demo** on the first step: a sample hall with pre-measured areas and simulated Smaart data, so you can see everything working without Smaart. It never touches your own venue — leave it with **Exit demo**.
 
-1. **Auditorium** — drop in a **floor plan** of the room (PDF, PNG, JPEG or SVG) and outline its areas — see [Start from a floor plan](#start-from-a-floor-plan). Or use an auditorium file (`.json`), or a seat list (`.csv`, or an older seat-by-seat `.json`) — each section of seats becomes one area. The app checks the file and either shows a summary or lists exactly what to fix, with line numbers. No file yet? Try **Use the example hall**, or **Import a venue profile…** if you exported one from another computer. See [the file format](#5-the-auditorium-file) below.
+1. **Auditorium** — drop in a **floor plan** of the room (PDF, PNG, JPEG or SVG) and outline its areas — see [Start from a floor plan](#start-from-a-floor-plan). Or use an auditorium file (`.json`), or a seat list (`.csv`, or an older seat-by-seat `.json`) — each section becomes an area, and big sections are split into blocks of up to 40 seats. The app checks the file and either shows a summary or lists exactly what to fix, with line numbers. No file yet? Try **Use the example hall**, or **Import a venue profile…** if you exported one from another computer. See [the file format](#5-the-auditorium-file) below.
 2. **FOH position** — click the map where your FOH measurement mic is, or type its x / y (and optional height) in your file's units. If your file has no stage, you can place it here too.
 3. **Smaart** — host, port, Smaart version, and the API password if you set one. Press **Test connection**; you'll get a plain answer such as *"Connected and logged in to Smaart"* or *"Nothing is listening at localhost:26000 — start Smaart and enable its API."* You can skip this and connect later.
 4. **Save** — the venue opens.
@@ -163,7 +163,7 @@ The complete JSON Schema is in [`docs/auditorium.schema.json`](docs/auditorium.s
 
 ### Seat lists (older files and CSV)
 
-A list of individual seats still works — each **section** becomes one area outlined around its seats, and you can redraw or split them afterwards with **Edit areas**. That covers version-1 files (`"schemaVersion": 1` with `"seats": [{ "id", "x", "y", "section" }]`) and CSV:
+A list of individual seats still works — each **section** becomes an area outlined around its seats; sections with more than 40 seats are split into blocks of up to 40 (named *C 1, C 2…* from the stage back). Rename, redraw or merge them afterwards with **Edit areas**. That covers version-1 files (`"schemaVersion": 1` with `"seats": [{ "id", "x", "y", "section" }]`) and CSV:
 
 ```csv
 seat,x,y,z
@@ -187,7 +187,7 @@ Everything lives in your user folder:
 
 | File | What's in it |
 |---|---|
-| `venue.json` | The auditorium and its areas, FOH position, Smaart settings (`schemaVersion` 2). Venues from Roomio 0.1.x (seat by seat) are converted to areas the first time they open — the originals are kept in `backups/` |
+| `venue.json` | The auditorium and its areas, FOH position, Smaart settings (`schemaVersion` 2). Venues from Roomio 0.1.x (seat by seat) are converted to areas (up to 40 seats each) the first time they open — the originals are kept in `backups/` |
 | `measurements.json` | Area readings and frequency responses |
 | `credentials.json` | The Smaart API password, encrypted with your system keychain |
 | `backups/` | Venues replaced by New Venue, Reset or Import, and the originals of converted 0.1.x venues |
