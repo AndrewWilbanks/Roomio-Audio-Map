@@ -38,28 +38,27 @@ html[data-theme="dark"] .warns li{color:#f0c07e;}
 .setup .card{margin-bottom:0;}
 .step[hidden]{display:none;}
 
-/* floor-plan import (plan-import.js) */
+/* floor-plan import (plan-import.js): the plan on the map, drawn areas listed beside it */
 .plan{margin-top:16px;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface);}
 .plan-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .plan-file{font-size:12px;font-weight:700;color:var(--ink3);}
 .plan-count{margin-left:auto;font-weight:800;font-size:13px;color:var(--ink);}
-.plan-guide{margin:8px 0 10px;padding-left:20px;font-size:13px;line-height:1.5;color:var(--ink2);}
-.plan-guide li.done{color:var(--ink3);}
-.plan-guide li.done b{text-decoration:line-through;text-decoration-color:var(--ok);}
-.plan-guide li.now b{color:var(--ink);}
-.plan-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
-.plan-sens{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ink3);margin:0;}
-.plan-sens input{width:110px;}
-.plan-view{position:relative;height:min(58vh,580px);min-height:340px;border:1px solid var(--line2);border-radius:10px;overflow:hidden;background:#fff;touch-action:none;}
-.plan-view canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
-.plan-view.mode-box canvas,.plan-view.mode-area canvas,.plan-view.mode-measure canvas,.plan-view.mode-stage canvas{cursor:crosshair;}
-.plan-view.mode-edit canvas{cursor:copy;}
-.plan-view.panning canvas{cursor:grabbing;}
-.plan-busy{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:color-mix(in srgb,var(--paper) 72%,transparent);font-weight:800;}
-.plan-bar{width:220px;height:6px;border-radius:4px;background:var(--line2);overflow:hidden;}
-.plan-bar i{display:block;height:100%;width:0;background:var(--sky);transition:width .15s;}
-.plan-measure{position:absolute;left:12px;bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;box-shadow:0 4px 14px rgba(0,0,0,.12);}
+.plan-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px;}
+.plan-tools #plan-hint{flex:1;min-width:220px;}
+.plan-body{display:grid;grid-template-columns:1fr 240px;gap:12px;}
+@media (max-width:760px){.plan-body{grid-template-columns:1fr;}}
+.plan-view{position:relative;height:min(60vh,600px);min-height:340px;border:1px solid var(--line2);border-radius:10px;overflow:hidden;background:#fff;touch-action:none;}
+.plan-view svg{position:absolute;inset:0;width:100%;height:100%;}
+.plan-side{max-height:min(60vh,600px);overflow:auto;}
+.plan-areas{display:flex;flex-direction:column;gap:6px;}
+.plan-area{display:grid;grid-template-columns:22px 1fr auto auto auto;gap:4px;align-items:center;padding:4px;border-radius:8px;border:1.5px solid transparent;}
+.plan-area.sel{border-color:var(--skydk);background:color-mix(in srgb,var(--sky) 10%,var(--surface));}
+.plan-area-n{font-size:11px;font-weight:800;color:var(--ink3);text-align:center;}
+.plan-area input{padding:5px 8px;font-size:13px;}
+.plan-busy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--paper) 72%,transparent);font-weight:800;z-index:4;}
+.plan-measure{position:absolute;left:12px;bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;box-shadow:0 4px 14px rgba(0,0,0,.12);z-index:4;}
 .plan-measure label{margin:0;font-size:12px;}
-.plan-measure input{width:110px;}
+.plan-measure input{width:100px;}
+.plan-measure select{width:auto;}
 .plan-foot{display:flex;align-items:center;gap:12px;margin-top:10px;}
 .plan-foot #plan-use{margin-left:auto;}

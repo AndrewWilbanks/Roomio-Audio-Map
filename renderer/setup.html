@@ -30,10 +30,10 @@
       <section class="card step" data-step="1">
         <div class="card-header"><div><div class="eyebrow">Step 1 of 4</div><h2 class="card-title">Import your auditorium</h2></div></div>
         <div class="card-body">
-          <p class="hint">Use a <b>floor plan</b> of the room (<b>PDF, PNG, JPEG or SVG</b>) and Roomio finds the seats for you, or an auditorium file that already lists every seat (<b>.json</b>, or a <b>.csv</b> with columns <code>seat,x,y,z</code>).</p>
+          <p class="hint">Use a <b>floor plan</b> of the room (<b>PDF, PNG, JPEG or SVG</b>) and outline the areas you want to measure, or a Roomio auditorium file (<b>.json</b>). A seat list (<b>.csv</b> <code>seat,x,y</code>, or an older seat-by-seat .json) also works — each section becomes one area.</p>
           <div class="drop" id="drop" role="button" tabindex="0" aria-label="Choose an auditorium file">
             <div class="drop-t">Drop a file here, or <u>choose a file</u></div>
-            <div class="drop-s">Floor plan: .pdf · .png · .jpg · .svg &nbsp;·&nbsp; Seat list: .json · .csv</div>
+            <div class="drop-s">Floor plan: .pdf · .png · .jpg · .svg &nbsp;·&nbsp; Auditorium file: .json · seat list .csv</div>
           </div>
           <div class="chips" style="margin-top:10px">
             <button class="btn btn-sky btn-sm" id="btn-demo" title="Explore Roomio with a sample hall and simulated Smaart data — nothing is saved to your venue">Try the demo</button>
@@ -42,17 +42,17 @@
             <details class="fmt"><summary>What goes in the file?</summary>
               <pre>{
   "format": "roomio-auditorium",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "Main Auditorium",
   "units": "ft",
   "yAxis": "down",
   "stage": { "x": 0, "y": 0 },
-  "seats": [
-    { "id": "A-1-1", "section": "A", "row": 1, "seat": 1, "x": -12.5, "y": 20 },
-    { "id": "A-1-2", "section": "A", "row": 1, "seat": 2, "x": -10.5, "y": 20 }
+  "areas": [
+    { "id": "front-left", "name": "Front Left", "points": [[-30, 10], [-8, 10], [-8, 30], [-34, 30]] },
+    { "id": "centre", "name": "Centre", "points": [[-6, 10], [6, 10], [6, 30], [-6, 30]] }
   ]
 }</pre>
-              <p class="hint">CSV: one seat per line — <code>seat,x,y,z</code> (z optional). Labels like <code>A-12-4</code> are read as section A, row 12, seat 4. Optional extra columns: <code>section,row,number</code>. Full details are in the README.</p>
+              <p class="hint">Each area is an outline — its corners as <code>[x, y]</code> pairs. A seat list works too: CSV <code>seat,x,y,z</code> (labels like <code>A-12-4</code> give section A), or an older version-1 file with <code>"seats"</code>; each section becomes one area. Full details are in the README.</p>
             </details>
           </div>
 
@@ -64,56 +64,49 @@
             </div>
           </div>
 
-          <!-- floor plan: find the seats (renderer/js/plan-import.js) -->
+          <!-- floor plan: draw the areas (renderer/js/plan-import.js) -->
           <div id="plan" class="plan" hidden>
             <div class="plan-head">
               <div class="plan-file" id="plan-file"></div>
               <select id="plan-page" hidden aria-label="PDF page"></select>
               <span class="plan-count" id="plan-count"></span>
             </div>
-            <ol class="plan-guide">
-              <li data-g="area"><i>Optional:</i> <b>Seating area</b> — drag a rectangle around the seats so Roomio only looks there (not in the lobby, stage or legend).</li>
-              <li data-g="box"><b>Draw a box around one seat</b> on the plan (drag). Roomio finds every seat drawn the same way, at any angle.</li>
-              <li data-g="fix"><b>Check the dots.</b> <i>Add / remove</i> fixes misses; <i>Stage</i> moves the stage (row 1 is nearest it).</li>
-              <li data-g="scale"><b>Set the scale</b> — the seat spacing below, or <i>Measure</i> any known distance.</li>
-            </ol>
+            <p class="hint" style="margin:6px 0 10px">Outline each part of the room you want measured as one spot — e.g. <i>Front Left, Centre, Balcony, Under balcony</i>. Draw them in the order you'll walk the room.</p>
             <div class="plan-tools">
               <div class="chips" id="plan-modes">
-                <button class="chip" data-mode="area" title="Only look for seats inside a rectangle you draw">Seating area</button>
-                <button class="chip on" data-mode="box">Box a seat</button>
-                <button class="chip" data-mode="edit">Add / remove</button>
+                <button class="chip on" data-mode="draw">Draw area</button>
                 <button class="chip" data-mode="stage">Stage</button>
-                <button class="chip" data-mode="measure">Measure</button>
+                <button class="chip" data-mode="measure" title="Set the scale from a known distance (optional)">Measure</button>
               </div>
-              <label class="plan-sens" title="Higher finds more seats (and more false ones)">Sensitivity <input type="range" id="plan-sens" min="0" max="1" step="0.05" value="0.5"></label>
-              <button class="btn btn-secondary btn-sm" id="plan-find" disabled>Find seats</button>
-              <button class="btn btn-secondary btn-sm" id="plan-area-x" hidden title="Look for seats on the whole plan again">Remove area</button>
-              <button class="btn btn-secondary btn-sm" id="plan-clear" disabled>Clear</button>
+              <span class="small muted" id="plan-hint"></span>
             </div>
-            <div class="plan-view" id="plan-view">
-              <canvas id="plan-canvas"></canvas>
-              <div class="map-tools">
-                <button id="plan-zin" title="Zoom in" aria-label="Zoom in">+</button>
-                <button id="plan-zout" title="Zoom out" aria-label="Zoom out">−</button>
-                <button id="plan-zfit" title="Fit plan" aria-label="Fit plan" style="font-size:14px">⤢</button>
+            <div class="plan-body">
+              <div class="map-wrap plan-view" id="plan-view">
+                <div class="map-tools">
+                  <button id="plan-zin" title="Zoom in" aria-label="Zoom in">+</button>
+                  <button id="plan-zout" title="Zoom out" aria-label="Zoom out">−</button>
+                  <button id="plan-zfit" title="Fit plan" aria-label="Fit plan" style="font-size:14px">⤢</button>
+                </div>
+                <div class="plan-busy" id="plan-busy" hidden><div class="plan-busy-t" id="plan-busy-t">Working…</div></div>
+                <form class="plan-measure" id="plan-measure" hidden>
+                  <label for="plan-dist">Distance between the two points</label>
+                  <input id="plan-dist" type="number" min="0" step="any" required>
+                  <select id="plan-dist-unit" aria-label="Unit"><option value="ft">feet</option><option value="m">metres</option></select>
+                  <button class="btn btn-primary btn-sm" type="submit">Set scale</button>
+                  <button class="btn btn-secondary btn-sm" type="button" id="plan-measure-x">Cancel</button>
+                </form>
               </div>
-              <div class="plan-busy" id="plan-busy" hidden><div class="plan-busy-t" id="plan-busy-t">Working…</div><div class="plan-bar"><i id="plan-bar"></i></div></div>
-              <form class="plan-measure" id="plan-measure" hidden>
-                <label for="plan-dist">Distance between the two points</label>
-                <input id="plan-dist" type="number" min="0" step="any" required>
-                <span class="plan-unit"></span>
-                <button class="btn btn-primary btn-sm" type="submit">Set scale</button>
-                <button class="btn btn-secondary btn-sm" type="button" id="plan-measure-x">Cancel</button>
-              </form>
+              <div class="plan-side">
+                <div class="section-h" style="margin-top:0">Areas</div>
+                <div id="plan-areas" class="plan-areas"></div>
+              </div>
             </div>
-            <div class="form-row three" style="margin-top:12px">
+            <div class="form-row" style="margin-top:12px">
               <div><label for="plan-name">Venue name</label><input id="plan-name" placeholder="e.g. Main Auditorium"></div>
-              <div><label for="plan-units">Units</label><select id="plan-units"><option value="ft">feet</option><option value="m">metres</option></select></div>
-              <div><label for="plan-pitch">Seat spacing <span class="muted">(centre to centre)</span></label><input id="plan-pitch" type="number" min="0.1" step="any"><div class="small muted" id="plan-scale-note"></div></div>
+              <div><label>Scale</label><div class="small muted" id="plan-scale-note" style="padding-top:8px"></div></div>
             </div>
             <div class="plan-foot">
-              <span class="small muted" id="plan-summary"></span>
-              <button class="btn btn-primary btn-sm" id="plan-use" disabled>Use these seats</button>
+              <button class="btn btn-primary btn-sm" id="plan-use" disabled>Use these areas</button>
             </div>
           </div>
 
@@ -194,7 +187,6 @@
   <script src="js/auditorium.js"></script>
   <script src="js/smaart-defaults.js"></script>
   <script src="js/map.js"></script>
-  <script src="js/plan-detect.js"></script>
   <script src="js/plan-import.js"></script>
   <script src="js/setup.js"></script>
 </body>

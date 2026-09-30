@@ -1,9 +1,11 @@
-/* store.js — venue settings + seat readings, persisted through RA (bridge.js).
-   The venue profile (venue.json) holds the auditorium, FOH position, Smaart settings,
-   seat edits and preferences. Readings and frequency responses live in a separate
-   measurements file. Everything is local to this computer. */
+/* store.js — venue settings + area readings, persisted through RA (bridge.js).
+   The venue profile (venue.json) holds the auditorium (its areas), FOH position, Smaart
+   settings and preferences. Readings and frequency responses live in a separate measurements
+   file, keyed by area id (the field is still called seat_id for compatibility with v1 files).
+   Everything is local to this computer. */
 (function () {
-  const SCHEMA_VERSION = 1;
+  const SCHEMA_VERSION = 2;          // venue.json (v2: areas; main/venue-store.js upgrades v1)
+  const DATA_SCHEMA_VERSION = 1;     // measurements.json
 
   // Connection values (host/port/path) come only from the venue — they are deliberately NOT
   // defaulted here; the wizard pre-fills them from SMAART_DEFAULTS and saves them (SANDBOX.md).
@@ -27,9 +29,9 @@
 
   let venue = null;                  // raw venue.json
   let room = null;                   // normalised auditorium for the map
-  let settings = null;               // working view: { booth (map coords), manualBooth, smaart, seatEdits, ui }
-  let readings = [];                 // [{id, seat_id, metric, seat_value, booth_value, delta, notes, measured_at}]
-  let spectra = [];                  // [{id, seat_id, seat_bins[31], booth_bins[31], source, notes, measured_at}]
+  let settings = null;               // working view: { booth (map coords), manualBooth, smaart, ui }
+  let readings = [];                 // [{id, seat_id (= area id), metric, seat_value, booth_value, delta, notes, measured_at}]
+  let spectra = [];                  // [{id, seat_id (= area id), seat_bins[31], booth_bins[31], source, notes, measured_at}]
   let venueTimer = null, dataTimer = null;
 
   function merge(base, over) {
@@ -62,7 +64,6 @@
       auditorium,
       foh,                                           // in the auditorium file's own coordinates
       smaart: merge(defaultSmaart(), smaart || {}),
-      seatEdits: { deleted: [], added: [], labels: {} },
       preferences: defaultPrefs(),
     };
   }
@@ -73,6 +74,7 @@
     if (!venue || !venue.auditorium) return { ready: false };
     const parsed = Auditorium.parseAuditoriumJson(venue.auditorium);
     if (!parsed.ok) return { ready: false, error: 'The saved venue is damaged: ' + parsed.errors[0] };
+    venue.auditorium = parsed.auditorium;
     room = Auditorium.normalise(parsed.auditorium);
     const foh = venue.foh || parsed.auditorium.foh || null;
     const prefs = merge(defaultPrefs(), venue.preferences);
@@ -80,7 +82,6 @@
       booth: foh ? { x: foh.x, y: foh.y * room.flip } : { ...room.suggestedFoh },
       manualBooth: prefs.manualBooth,
       smaart: merge(defaultSmaart(), migrateSmaart(venue.smaart)),
-      seatEdits: merge({ deleted: [], added: [], labels: {} }, venue.seatEdits),
       ui: prefs.ui,
     };
     const d = await RA.data.get();
@@ -96,7 +97,6 @@
       updatedAt: new Date().toISOString(),
       foh: { x: Math.round(settings.booth.x * 10) / 10, y: Math.round(settings.booth.y * room.flip * 10) / 10 },
       smaart: settings.smaart,
-      seatEdits: settings.seatEdits,
       preferences: { ui: settings.ui, manualBooth: settings.manualBooth },
     };
   }
@@ -107,12 +107,12 @@
   }
   function saveData() {
     clearTimeout(dataTimer);
-    dataTimer = setTimeout(() => { dataTimer = null; RA.data.save({ schemaVersion: SCHEMA_VERSION, readings, spectra }); }, 200);
+    dataTimer = setTimeout(() => { dataTimer = null; RA.data.save({ schemaVersion: DATA_SCHEMA_VERSION, readings, spectra }); }, 200);
   }
   // flush pending writes (e.g. before a reset or export)
   async function flush() {
     if (venueTimer) { clearTimeout(venueTimer); venueTimer = null; venue = toVenue(); await RA.venue.save(venue); }
-    if (dataTimer) { clearTimeout(dataTimer); dataTimer = null; await RA.data.save({ schemaVersion: SCHEMA_VERSION, readings, spectra }); }
+    if (dataTimer) { clearTimeout(dataTimer); dataTimer = null; await RA.data.save({ schemaVersion: DATA_SCHEMA_VERSION, readings, spectra }); }
   }
 
   async function addReadings(list) {
@@ -138,6 +138,38 @@
   }
   async function deleteSpectrum(id) { spectra = spectra.filter(r => r.id !== id); saveData(); }
 
+  // ---- areas: edits change the venue's own copy of the auditorium (map coords in, file coords stored)
+  const toFile = (poly) => poly.map(([x, y]) => [Math.round(x * 1000) / 1000, Math.round(y * room.flip * 1000) / 1000]);
+  function reroom() { room = Auditorium.normalise(venue.auditorium); saveSettings(); return room; }
+  function addArea(polyMap, name) {
+    const used = new Set(venue.auditorium.areas.map(a => a.id));
+    const nm = (name || '').trim() || `Area ${venue.auditorium.areas.length + 1}`;
+    const area = { id: Auditorium.slug(nm, used), name: nm, points: toFile(polyMap) };
+    venue.auditorium.areas.push(area);
+    reroom();
+    return area.id;
+  }
+  function renameArea(id, name) {
+    const a = venue.auditorium.areas.find(x => x.id === id);
+    if (a && name && name.trim()) { a.name = name.trim(); reroom(); }
+  }
+  // readings for a deleted area stay in the measurements file (harmless, and recoverable)
+  function deleteArea(id) {
+    if (venue.auditorium.areas.length <= 1) throw new Error('A venue needs at least one area.');
+    venue.auditorium.areas = venue.auditorium.areas.filter(x => x.id !== id);
+    reroom();
+  }
+  function redrawArea(id, polyMap) {
+    const a = venue.auditorium.areas.find(x => x.id === id);
+    if (a && polyMap.length >= 3) { a.points = toFile(polyMap); reroom(); }
+  }
+  function moveArea(id, dir) {
+    const list = venue.auditorium.areas, i = list.findIndex(x => x.id === id), j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    reroom();
+  }
+
   function latest() {
     const m = new Map();
     for (const r of readings) {
@@ -155,6 +187,7 @@
 
   window.Store = {
     SCHEMA_VERSION, init, newVenue, saveSettings, flush,
+    addArea, renameArea, redrawArea, deleteArea, moveArea,
     addReadings, deleteReading, clearReadings, latest,
     addSpectrum, deleteSpectrum, latestSpectra,
     get venue() { return venue; },

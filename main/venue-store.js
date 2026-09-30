@@ -1,15 +1,15 @@
 // venue-store.js — the venue profile and measurements on disk, in the OS user-data folder:
 //   macOS   ~/Library/Application Support/Roomio/
 //   Windows %APPDATA%\Roomio\
-// Files: venue.json (auditorium, FOH, Smaart settings, seat edits, preferences)
-//        measurements.json (seat readings + frequency responses)
+// Files: venue.json (auditorium with its areas, FOH, Smaart settings, preferences)
+//        measurements.json (area readings + frequency responses; keyed by area id in seat_id)
 //        credentials.json (Smaart API password, encrypted with the OS keychain via safeStorage)
 const fs = require('fs');
 const path = require('path');
 const { app, safeStorage } = require('electron');
 const Auditorium = require('../renderer/js/auditorium.js');
 
-const VENUE_SCHEMA_VERSION = 1;
+const VENUE_SCHEMA_VERSION = 2;       // v2: the room is a set of areas (v1: individual seats)
 const DATA_SCHEMA_VERSION = 1;
 
 // Demo mode keeps its own venue + measurements in userData/demo, away from the real venue.
@@ -32,11 +32,31 @@ function writeJson(name, obj) {
   fs.renameSync(tmp, target);
 }
 
-// Upgrade older files here as the schema grows (v1 is the first release).
-function migrateVenue(v) {
-  if (v.schemaVersion > VENUE_SCHEMA_VERSION) throw new Error(`venue.json is from a newer version of Roomio (schema ${v.schemaVersion}). Update the app.`);
-  return v;
+// v1 (individual seats) -> v2 (areas): each section's seats become one area; seat edits are
+// applied first; readings and responses taken at a seat move to its area (from_seat keeps the seat).
+// Pure: returns { venue, measurements, changed }.
+function upgradeV1(v, m) {
+  if (!v || v.schemaVersion > VENUE_SCHEMA_VERSION) throw new Error(`venue.json is from a newer version of Roomio (schema ${v && v.schemaVersion}). Update the app.`);
+  const a = v.auditorium;
+  if (v.schemaVersion === VENUE_SCHEMA_VERSION && a && Array.isArray(a.areas)) return { venue: v, measurements: m, changed: false };
+  let aud = a;
+  if (a && Array.isArray(a.seats)) {
+    const ed = v.seatEdits || {}, flip = a.yAxis === 'up' ? -1 : 1;
+    const del = new Set(ed.deleted || []), labels = ed.labels || {};
+    const seats = a.seats.filter(s => !del.has(s.id)).map(s => ({ ...s, ...(labels[s.id] && labels[s.id].section ? { section: labels[s.id].section } : {}) }))
+      .concat((ed.added || []).map(s => ({ id: s.id, x: s.x, y: s.y * flip, section: s.section })));   // edits were in map coords
+    aud = { ...a, schemaVersion: 1, seats: seats.length ? seats : a.seats };
+  }
+  const r = Auditorium.parseAuditoriumJson(aud);
+  if (!r.ok) throw new Error('The saved venue could not be upgraded: ' + r.errors[0]);
+  const map = r.seatToArea || {};
+  const move = (row) => map[row.seat_id] ? { ...row, seat_id: map[row.seat_id], from_seat: row.seat_id } : row;
+  const nv = { ...v, schemaVersion: VENUE_SCHEMA_VERSION, auditorium: r.auditorium, upgradedAt: new Date().toISOString() };
+  delete nv.seatEdits;
+  const nm = m ? { ...m, readings: (m.readings || []).map(move), spectra: (m.spectra || []).map(move) } : m;
+  return { venue: nv, measurements: nm, changed: true };
 }
+function migrateVenue(v) { return upgradeV1(v, null).venue; }
 
 function validateVenue(v) {
   if (!v || typeof v !== 'object') return 'Venue profile must be an object.';
@@ -57,7 +77,17 @@ const venue = {
   exists: () => fs.existsSync(file('venue.json')),
   get() {
     const v = readJson('venue.json');
-    return v ? migrateVenue(v) : null;
+    if (!v) return null;
+    const up = upgradeV1(v, data.get());
+    if (up.changed) {
+      // keep the v1 files, then write the upgraded venue + measurements
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19), bdir = path.join(dir(), 'backups');
+      fs.mkdirSync(bdir, { recursive: true });
+      for (const name of ['venue.json', 'measurements.json']) if (fs.existsSync(file(name))) fs.copyFileSync(file(name), path.join(bdir, `${stamp}-v1-${name}`));
+      writeJson('venue.json', up.venue);
+      data.save(up.measurements);
+    }
+    return up.venue;
   },
   save(v) {
     const err = validateVenue(v);
@@ -135,16 +165,18 @@ function parseProfile(text) {
   if (p && p.format === Auditorium.FORMAT) throw new Error('This is an auditorium file, not a venue profile. Use New venue to set up a venue from it.');
   if (!p || p.format !== PROFILE_FORMAT) throw new Error('This isn\'t a Roomio venue profile.');
   if (p.schemaVersion !== 1) throw new Error(`This venue profile is version ${p.schemaVersion}; this app reads version 1. Update the app.`);
-  const v = migrateVenue(p.venue || {});
-  const err = validateVenue(v);
-  if (err) throw new Error('The venue profile is damaged: ' + err);
   let m = null;
   if (p.measurements) {
     if (!Array.isArray(p.measurements.readings) || !Array.isArray(p.measurements.spectra)) throw new Error('The venue profile\'s measurements are damaged.');
     m = { readings: p.measurements.readings, spectra: p.measurements.spectra };
   }
+  let up;
+  try { up = upgradeV1(p.venue || {}, m); } catch (e) { throw new Error('The venue profile is damaged: ' + e.message); }
+  const v = up.venue; m = up.measurements;
+  const err = validateVenue(v);
+  if (err) throw new Error('The venue profile is damaged: ' + err);
   return { venue: stripSecrets(v), measurements: m,
-    summary: { name: v.auditorium.name, seats: v.auditorium.seats.length, readings: m ? m.readings.length : 0, spectra: m ? m.spectra.length : 0, exportedAt: p.exportedAt } };
+    summary: { name: v.auditorium.name, areas: v.auditorium.areas.length, readings: m ? m.readings.length : 0, spectra: m ? m.spectra.length : 0, exportedAt: p.exportedAt } };
 }
 
 function importProfile(parsed) {
@@ -162,6 +194,6 @@ function writeDemo({ venue: v, measurements }) {
 }
 
 module.exports = {
-  VENUE_SCHEMA_VERSION, venue, data, credentials, userDataDir: dir, exportProfile, parseProfile, importProfile,
+  VENUE_SCHEMA_VERSION, venue, data, credentials, upgradeV1, userDataDir: dir, exportProfile, parseProfile, importProfile,
   setDemo, writeDemo, isDemo: () => demoMode,
 };

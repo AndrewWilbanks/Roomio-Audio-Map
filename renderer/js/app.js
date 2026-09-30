@@ -1,15 +1,18 @@
-/* app.js — Roomio: routing, panels, seat entry, Smaart + data dialogs. */
+/* app.js — Roomio: routing, panels, area entry, Smaart + data dialogs.
+   The room is a set of AREAS the user drew (Store.room.areas). Many identifiers still say "seat"
+   (seatById, selectSeat, SeatMap, readings' seat_id): they all mean an area. */
 (function () {
   let ROOM = null;              // normalised auditorium from the venue profile (Store.room)
-  let seats = [];               // detected seats with edits applied
+  let seats = [];               // the room's areas, in walk-through order
   let seatById = new Map();
-  let latest = new Map();       // "seat|metric" -> latest reading
+  let latest = new Map();       // "area|metric" -> latest reading
   let metric = 'spl';
   let selectedId = null;
   let mapMode = 'view';
   let renderQueued = false;
   let dataVersion = 0;          // bumps whenever readings change (estimate cache key)
-  let latestSp = new Map();     // seat -> latest frequency response
+  let latestSp = new Map();     // area -> latest frequency response
+  let redrawId = null;          // area whose outline is being redrawn (Edit areas → Redraw)
 
   const $ = (s, r = document) => r.querySelector(s);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -30,12 +33,15 @@
     SeatMap.setSeats(seats);
     SeatMap.setBooth(S().booth);
     SeatMap.on('seatClick', ({ id }) => {
-      if (mapMode === 'edit') return openSeatEditor(id);
+      if (mapMode === 'edit') return openAreaEditor(id);
       selectSeat(id);
       // stacked layout (phone / portrait tablet): bring the entry form into view
       if (window.innerWidth <= 1060) $('#seat-panel').closest('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
-    SeatMap.on('emptyClick', (p) => { if (mapMode === 'edit') openSeatEditor(null, p); });
+    SeatMap.on('emptyClick', () => { if (mapMode === 'edit') toast('Press Draw area, then click the corners of the new area'); });
+    SeatMap.on('areaDrawn', onAreaDrawn);
+    SeatMap.on('drawHint', toast);
+    SeatMap.on('drawChange', () => renderDrawBanner());
     SeatMap.on('boothPlaced', (p) => {
       S().booth = { x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 };
       Store.saveSettings(); SeatMap.setBooth(S().booth); setMapMode('view'); toast('Booth location saved');
@@ -52,7 +58,7 @@
 
     window.addEventListener('hashchange', route);
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { if ($('.modal-overlay')) closeModal(); else if (mapMode !== 'view') setMapMode('view'); else selectSeat(null); }
+      if (e.key === 'Escape') { if ($('.modal-overlay')) closeModal(); else if (mapMode === 'draw') setMapMode('edit'); else if (mapMode !== 'view') setMapMode('view'); else selectSeat(null); }
     });
     route();
     renderStatus();
@@ -61,7 +67,7 @@
   function showDemoBanner() {
     const b = document.createElement('div');
     b.className = 'demo-banner';
-    b.innerHTML = `<b>Demo mode</b><span>Sample hall with simulated Smaart data — seats follow the live FOH level. Nothing here touches your own venue.</span>
+    b.innerHTML = `<b>Demo mode</b><span>Sample hall with simulated Smaart data — the areas follow the live FOH level. Nothing here touches your own venue.</span>
       <button class="btn btn-sm" id="demo-exit">Exit demo</button>`;
     document.querySelector('.main').prepend(b);
     $('#demo-exit').onclick = () => onMenuAction('exit-demo');
@@ -91,32 +97,24 @@
     sel.addEventListener('change', () => { location.hash = '#/' + sel.value; });
   }
 
-  // ------------------------------------------------------------ seats
+  // ------------------------------------------------------------ areas
   function rebuildSeats() {
-    const ed = S().seatEdits;
-    const del = new Set(ed.deleted);
-    seats = ROOM.seats.filter(s => !del.has(s.id)).concat(ed.added || [])
-      .map(s => ({ ...s, ...(ed.labels[s.id] || {}) }));
+    ROOM = Store.room;
+    seats = ROOM.areas.slice();
     seatById = new Map(seats.map(s => [s.id, s]));
-    estCacheByMetric.clear();
+    estCacheByMetric.clear(); idwCache.clear();
   }
-  const seatName = (s) => `${s.section} · Row ${s.row} · Seat ${s.seat}`;
+  const seatName = (s) => s.name;
 
+  // the next area in the list (the walk-through order you drew them in, changeable in Edit areas)
   function nextSeat(s) {
-    const same = seats.filter(o => o.section === s.section);
-    const inRow = same.filter(o => o.row === s.row && o.seat > s.seat).sort((a, b) => a.seat - b.seat);
-    if (inRow.length) return inRow[0];
-    const later = same.filter(o => o.row > s.row).sort((a, b) => a.row - b.row || a.seat - b.seat);
-    return later[0] || null;
+    const i = seats.findIndex(o => o.id === s.id);
+    return i >= 0 && i < seats.length - 1 ? seats[i + 1] : null;
   }
 
-  // A seat is complete when every metric has real data (a reading or a frequency response)
+  // An area is complete when every metric has real data (a reading or a frequency response)
   function seatComplete(id) { return MEASURED.every(x => latest.has(id + '|' + x.id) || latestSp.has(id)); }
-  const seatOrder = () => {
-    const secOrder = ROOM.sections.map(x => x.name);
-    const ix = (n) => { const i = secOrder.indexOf(n); return i < 0 ? 99 : i; };
-    return seats.slice().sort((a, b) => ix(a.section) - ix(b.section) || a.row - b.row || a.seat - b.seat);
-  };
+  const seatOrder = () => seats.slice();
   function nextIncomplete(fromId) {
     const order = seatOrder();
     const start = fromId ? order.findIndex(x => x.id === fromId) + 1 : 0;
@@ -129,9 +127,9 @@
   function goToSeat(s) { selectSeat(s.id, true); SeatMap.centerOn(s.x, s.y); focusEntry(); }
 
   // ------------------------------------------------------------ values
-  // Seat-minus-FOH offset for a metric, kept current against the live FOH.
+  // Area-minus-FOH offset for a metric, kept current against the live FOH.
   //  - reading only:        the measured offset (moves 1:1 with the FOH level)
-  //  - response only:       apply the seat's curve difference to the live FOH spectrum
+  //  - response only:       apply the area's curve difference to the live FOH spectrum
   //  - reading + response:  measured offset, corrected by how the program's spectrum has
   //                         changed since capture (identical to the reading when it hasn't)
   function seatDelta(id, m, liveFOH) {
@@ -151,7 +149,7 @@
     return v == null ? null : { delta: v, spectrum: sp, src: now != null ? 'live' : 'response' };
   }
 
-  // IDW neighbours depend only on which seats are measured, so cache them per data version
+  // IDW neighbours (by distance between area centres) depend only on which areas are measured
   const idwCache = new Map();
   function idwNeighbours(m, measuredIds) {
     const key = m + '|' + dataVersion + '|' + Store.spectra.length + '|' + seats.length;
@@ -168,7 +166,7 @@
     return map;
   }
 
-  // Offsets for every seat for one metric (real, or IDW-estimated when "Fill gaps" is on)
+  // Offsets for every area for one metric (real, or IDW-estimated when "Fill gaps" is on)
   const estCacheByMetric = new Map();
   function estimates(m) {
     const liveFOH = Smaart.liveSpectrum('booth');
@@ -192,7 +190,7 @@
     return out;
   }
 
-  // What the current page colors each seat by.
+  // What the current page colors each area by.
   function pageValues() {
     const m = metricById(metric);
     const basis = m.derived ? S().ui.devBasis : metric;
@@ -255,11 +253,11 @@
 
   function renderHead(m, pv) {
     const unit = m.derived ? 'dB vs booth' : (pv.relative ? 'dB relative to booth' : m.unit);
-    $('#page-eyebrow').textContent = `${ROOM.name} · Seat Map`;
+    $('#page-eyebrow').textContent = `${ROOM.name} · Room Map`;
     $('#page-title').textContent = m.label;
     let sub = esc(m.desc);
     if (m.derived) sub += ` · based on <b>${esc(metricById(pv.basis).label)}</b>`;
-    else if (pv.relative) sub += ' · <b>no booth value yet</b> — showing each seat relative to FOH';
+    else if (pv.relative) sub += ' · <b>no booth value yet</b> — showing each area relative to FOH';
     else sub += ` · booth ${fmt(pv.booth.value)} ${esc(m.unit)}`;
     $('#page-subtitle').innerHTML = sub;
     const ui = S().ui;
@@ -268,7 +266,7 @@
       chips += '<span class="chip-label">Based on</span>' + MEASURED.map(x =>
         `<button class="chip ${ui.devBasis === x.id ? 'on' : ''}" data-basis="${x.id}">${esc(x.short)}</button>`).join('');
     }
-    chips += `<button class="chip ${ui.interpolate ? 'on' : ''}" id="chip-interp" title="Estimate unmeasured seats from nearby measured ones">${ui.interpolate ? '✓ ' : ''}Fill gaps</button>`;
+    chips += `<button class="chip ${ui.interpolate ? 'on' : ''}" id="chip-interp" title="Estimate unmeasured areas from nearby measured ones">${ui.interpolate ? '✓ ' : ''}Fill gaps</button>`;
     if (!pv.relative) {
       const fr = fixedRange(metric), fixed = scaleMode() === 'fixed';
       chips += `<span class="chip-label" style="margin-left:6px">Scale</span>
@@ -302,7 +300,7 @@
       <div class="legend-bar"><div class="legend-grad" style="background:${gradientCss(stops)}"></div><div class="legend-ticks">${ticks.join('')}</div></div>
       <div class="legend-key"><span class="legend-sw" style="background:var(--seat-empty)"></span>Not measured</div>
       ${S().ui.interpolate ? '<div class="legend-key"><span class="legend-sw" style="background:#b5d86a;opacity:.6;border-style:dashed"></span>Estimated</div>' : ''}
-      <div class="legend-key" style="margin-left:auto">${pv.vals.size ? `${[...pv.vals.values()].filter(x => !x.est).length} of ${seats.length} seats measured` : 'No readings yet'}</div>`;
+      <div class="legend-key" style="margin-left:auto">${pv.vals.size ? `${[...pv.vals.values()].filter(x => !x.est).length} of ${seats.length} areas measured` : 'No readings yet'}</div>`;
   }
 
   function sourceBadge(src) {
@@ -354,7 +352,7 @@
     inp.onblur = () => setTimeout(() => done(true), 0);
   }
 
-  // ------------------------------------------------------------ seat panel
+  // ------------------------------------------------------------ area panel
   function selectSeat(id, pulse) {
     selectedId = id && seatById.has(id) ? id : null;
     SeatMap.select(selectedId, pulse);
@@ -379,7 +377,7 @@
       main = `<div class="big-read"><span class="v">${rel ? fmtSigned(e.delta) : fmt(b.value + e.delta)}</span><span class="u">${rel ? 'dB vs booth' : bm.unit}${e.est ? ' · estimated' : ''}</span></div>
         ${rel ? '' : `<div class="delta ${cls}">${fmtSigned(e.delta)} dB vs booth${e.src ? ` <span class="muted small">· ${SRC_NOTE[e.src]}</span>` : ''}</div>`}`;
     }
-    // every metric for this seat, right now
+    // every metric for this area, right now
     const cells = MEASURED.map(x => {
       const ex = estimates(x.id).get(s.id), bx = Smaart.booth(x.id).value;
       const v = !ex ? '—' : bx == null ? fmtSigned(ex.delta) : fmt(bx + ex.delta);
@@ -389,7 +387,7 @@
     return `${main}<div class="section-h" style="margin:12px 0 0">Right now</div><div class="now-grid">${cells}</div>`;
   }
 
-  // Rebuilds only when the seat, page or data changes; live numbers update in place
+  // Rebuilds only when the area, page or data changes; live numbers update in place
   // so a half-typed form (or an input you're about to tap) is never swapped out.
   function renderSeatPanel(force) {
     const box = $('#seat-panel');
@@ -403,8 +401,8 @@
     }
     seatPanelSig = sig;
     if (!selectedId) {
-      box.innerHTML = `<div class="empty"><img src="assets/mascot.png" alt=""><div class="t">Pick a seat</div>
-        <div class="s">Tap any seat on the map to see its readings or enter new ones.</div></div>`;
+      box.innerHTML = `<div class="empty"><img src="assets/mascot.png" alt=""><div class="t">Pick an area</div>
+        <div class="s">Tap any area on the map to see its readings or enter new ones.</div></div>`;
       return;
     }
     const s = seatById.get(selectedId);
@@ -414,7 +412,7 @@
     const rows = MEASURED.map(x => {
       const ph = Smaart.booth(x.id).value;
       return `<div class="m ${x.id === basis ? 'cur' : ''}">${esc(x.label)} <span class="muted small">${esc(x.unit)}</span></div>
-        <input type="number" step="0.1" inputmode="decimal" data-seat="${x.id}" aria-label="${esc(x.label)} at seat">
+        <input type="number" step="0.1" inputmode="decimal" data-seat="${x.id}" aria-label="${esc(x.label)} in this area">
         <input type="number" step="0.1" inputmode="decimal" data-booth="${x.id}" aria-label="${esc(x.label)} at booth" placeholder="${ph == null ? '' : fmt(ph)}">`;
     }).join('');
 
@@ -428,35 +426,35 @@
     }).join('');
 
     box.innerHTML = `
-      <div class="seat-head"><div><div class="seat-name">${esc(seatName(s))}</div><div class="seat-id">${esc(s.id)}</div></div>
+      <div class="seat-head"><div><div class="seat-name">${esc(seatName(s))}</div><div class="seat-id">Area ${seats.indexOf(s) + 1} of ${seats.length}</div></div>
         <button class="icon-btn" id="seat-close" title="Close" style="font-size:18px">✕</button></div>
       ${big}
       <div class="divider"></div>
       <div class="section-h" style="margin-top:0">Enter readings</div>
-      <p class="hint" style="margin:4px 0 10px">Seat = what the measurement mic reads here. Booth = Smaart at FOH at the same moment (leave blank to use the live/manual booth value shown).</p>
-      <div class="entry-grid"><div class="h">Metric</div><div class="h" style="text-align:right">Seat</div><div class="h" style="text-align:right">Booth</div>${rows}</div>
+      <p class="hint" style="margin:4px 0 10px">Area = what the measurement mic reads here (at a typical seat, ear height). Booth = Smaart at FOH at the same moment (leave blank to use the live/manual booth value shown).</p>
+      <div class="entry-grid"><div class="h">Metric</div><div class="h" style="text-align:right">Area</div><div class="h" style="text-align:right">Booth</div>${rows}</div>
       <input id="entry-notes" placeholder="Notes (optional)" style="margin-top:10px;font-size:13px">
-      <label class="check"><input type="checkbox" id="entry-advance" ${localStorage.getItem('ra_advance') !== '0' ? 'checked' : ''}> Jump to next seat after saving</label>
+      <label class="check"><input type="checkbox" id="entry-advance" ${localStorage.getItem('ra_advance') !== '0' ? 'checked' : ''}> Jump to next area after saving</label>
       <div class="entry-actions">
         <button class="btn btn-primary btn-sm" id="entry-save">Save readings</button>
         ${seatSrc ? '<button class="btn btn-sky btn-sm" id="entry-capture">Capture from Smaart</button>' : ''}
         <button class="btn btn-secondary btn-sm" id="entry-next">Skip ›</button>
-        <button class="btn btn-secondary btn-sm" id="entry-next-missing" title="Next seat that's missing any reading or response">Next unmeasured ›</button>
+        <button class="btn btn-secondary btn-sm" id="entry-next-missing" title="Next area that's missing any reading or response">Next unmeasured ›</button>
       </div>
       ${frSectionHtml(s)}
-      ${hist ? `<div class="section-h">Latest readings</div><table class="rtable"><thead><tr><th></th><th class="num">Seat</th><th class="num">Booth</th><th class="num">Δ</th><th></th><th></th></tr></thead><tbody>${hist}</tbody></table>` : ''}`;
+      ${hist ? `<div class="section-h">Latest readings</div><table class="rtable"><thead><tr><th></th><th class="num">Area</th><th class="num">Booth</th><th class="num">Δ</th><th></th><th></th></tr></thead><tbody>${hist}</tbody></table>` : ''}`;
 
     $('#seat-close').onclick = () => selectSeat(null);
     $('#entry-save').onclick = saveEntry;
-    $('#entry-next').onclick = () => { const n = nextSeat(s); if (n) { selectSeat(n.id, true); focusEntry(); } else toast('End of section'); };
-    $('#entry-next-missing').onclick = () => { const n = nextIncomplete(s.id); if (n) goToSeat(n); else toast('Every seat has a full set of data 🎉'); };
+    $('#entry-next').onclick = () => { const n = nextSeat(s); if (n) { selectSeat(n.id, true); focusEntry(); } else toast('That was the last area'); };
+    $('#entry-next-missing').onclick = () => { const n = nextIncomplete(s.id); if (n) goToSeat(n); else toast('Every area has a full set of data 🎉'); };
     $('#entry-advance').onchange = (ev) => { try { localStorage.setItem('ra_advance', ev.target.checked ? '1' : '0'); } catch (x) {} };
     if (seatSrc) $('#entry-capture').onclick = captureFromSmaart;
     $('#fr-capture').onclick = captureResponse;
     $('#fr-import').onclick = openImportResponse;
     $('#fr-bands').onchange = (ev) => { try { localStorage.setItem('ra_fr_bands', ev.target.checked ? '1' : '0'); } catch (x) {} };
     if ($('#fr-del')) $('#fr-del').onclick = async () => {
-      if (!confirm('Delete this seat\'s latest frequency response? (Band readings saved from it are kept.)')) return;
+      if (!confirm('Delete this area\'s latest frequency response? (Band readings saved from it are kept.)')) return;
       try { await Store.deleteSpectrum($('#fr-del').dataset.id); } catch (err) { toast('Delete failed: ' + err.message); }
       afterSpectraChanged();
     };
@@ -481,8 +479,8 @@
       const worst = d.reduce((a, v, i) => v != null && (a == null || Math.abs(v) > Math.abs(d[a])) ? i : a, null);
       info = `<p class="hint" style="margin:4px 0 6px">Captured ${new Date(sp.measured_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
           · ${sp.source === 'import' ? 'imported' : 'Smaart'}${n > 1 ? ` · ${n} captures` : ''}${worst != null ? ` · biggest difference ${fmtSigned(d[worst])} dB at ${fmtHz(THIRDS[worst])} Hz` : ''}. The chart below the map shows the curves.</p>
-        <table class="rtable"><thead><tr><th>Band</th><th class="num">Seat</th><th class="num">FOH</th><th class="num">Δ</th></tr></thead><tbody>${bands}</tbody></table>`;
-    } else info = '<p class="hint" style="margin:4px 0 6px">No response captured for this seat yet.</p>';
+        <table class="rtable"><thead><tr><th>Band</th><th class="num">Area</th><th class="num">FOH</th><th class="num">Δ</th></tr></thead><tbody>${bands}</tbody></table>`;
+    } else info = '<p class="hint" style="margin:4px 0 6px">No response captured for this area yet.</p>';
     return `<div class="section-h">Frequency response</div>${info}
       <label class="check"><input type="checkbox" id="fr-bands" ${localStorage.getItem('ra_fr_bands') !== '0' ? 'checked' : ''}> Also save Low / Lo-Mid / HF readings from captures</label>
       <div class="entry-actions">
@@ -537,10 +535,10 @@
       }
       list.push({ seat_id: s.id, metric: x.id, seat_value: +sv, booth_value: +bv, notes: $('#entry-notes').value.trim() });
     }
-    if (!list.length) { toast('Type at least one seat value'); return; }
+    if (!list.length) { toast('Type at least one value for this area'); return; }
     try { await Store.addReadings(list); }
     catch (err) { toast('Could not save: ' + err.message); return; }
-    toast(`Saved ${list.length} reading${list.length > 1 ? 's' : ''} · ${s.id}`);
+    toast(`Saved ${list.length} reading${list.length > 1 ? 's' : ''} · ${s.name}`);
     afterReadingsChanged();
     if ($('#entry-advance') && $('#entry-advance').checked) {
       const n = nextSeat(s);
@@ -560,7 +558,7 @@
   const addT = (a, b) => a && b ? a.map((v, i) => v == null || b[i] == null ? null : Math.round((v + b[i]) * 10) / 10) : null;
   const subT = (a, b) => a && b ? a.map((v, i) => v == null || b[i] == null ? null : Math.round((v - b[i]) * 10) / 10) : null;
 
-  // mean seat-minus-FOH curve over every seat's latest response
+  // mean area-minus-FOH curve over every area's latest response
   function roomDelta() {
     const sum = THIRDS.map(() => 0), n = THIRDS.map(() => 0);
     for (const [id, sp] of latestSp) {
@@ -582,25 +580,25 @@
     const room = roomDelta();
     const newest = [...latestSp.values()].sort((a, b) => b.measured_at < a.measured_at ? -1 : 1)[0];
 
-    // FOH reference: live Smaart, else the selected seat's capture, else the newest capture
+    // FOH reference: live Smaart, else the selected area's capture, else the newest capture
     const foh = liveFOH || (sp ? sp.booth_bins : newest ? newest.booth_bins : null);
     const fohLabel = liveFOH ? 'FOH (live)' : sp ? 'FOH at capture' : 'FOH (last capture)';
-    const seatName = sp ? seatById.get(selectedId).id : '';
+    const seatName = sp ? seatById.get(selectedId).name : '';
     const seatDelta = sp ? subT(sp.seat_bins, sp.booth_bins) : null;
     const series = [];
     if (view === 'relative') {
       if (foh || room.seats || sp) series.push({ key: 'foh', label: 'FOH', cls: 'fr-foh', values: THIRDS.map(() => 0) });
-      if (sp) series.push({ key: 'seat', label: `Seat ${seatName}`, cls: 'fr-seat', values: seatDelta });
-      if (room.seats) series.push({ key: 'avg', label: `Room average (${room.seats} seat${room.seats === 1 ? "" : "s"})`, cls: 'fr-avg', values: room.curve, dash: true });
+      if (sp) series.push({ key: 'seat', label: seatName, cls: 'fr-seat', values: seatDelta });
+      if (room.seats) series.push({ key: 'avg', label: `Room average (${room.seats} area${room.seats === 1 ? "" : "s"})`, cls: 'fr-avg', values: room.curve, dash: true });
     } else {
       if (foh) series.push({ key: 'foh', label: fohLabel, cls: 'fr-foh', values: foh });
-      if (sp) series.push({ key: 'seat', label: liveFOH ? `Seat ${seatName} (est. now)` : `Seat ${seatName}`, cls: 'fr-seat', values: liveFOH ? addT(liveFOH, seatDelta) : sp.seat_bins });
-      if (room.seats && foh) series.push({ key: 'avg', label: `Room average (${room.seats} seat${room.seats === 1 ? "" : "s"})`, cls: 'fr-avg', values: addT(foh, room.curve), dash: true });
+      if (sp) series.push({ key: 'seat', label: liveFOH ? `${seatName} (est. now)` : seatName, cls: 'fr-seat', values: liveFOH ? addT(liveFOH, seatDelta) : sp.seat_bins });
+      if (room.seats && foh) series.push({ key: 'avg', label: `Room average (${room.seats} area${room.seats === 1 ? "" : "s"})`, cls: 'fr-avg', values: addT(foh, room.curve), dash: true });
     }
 
     const sub = [];
     sub.push(liveFOH ? 'Live from Smaart' : newest ? 'From captured responses' : 'No responses captured yet');
-    if (selectedId && !sp) sub.push(`seat ${esc(selectedId)} has no response yet`);
+    if (selectedId && !sp) sub.push(`${esc(seatById.get(selectedId).name)} has no response yet`);
     if (bm.band) sub.push(`${esc(bm.label)} band shaded`);
     $('#fr-sub').innerHTML = sub.join(' · ');
     const chips = [['levels', 'dB levels'], ['relative', 'Relative to FOH'], ['table', 'Table']];
@@ -608,7 +606,7 @@
     $('#fr-chips').querySelectorAll('[data-frv]').forEach(b => b.onclick = () => { ui.frMode = b.dataset.frv; Store.saveSettings(); renderFR(metricById(metric)); });
 
     if (!series.length) {
-      body.innerHTML = `<div class="fr-empty">No frequency responses yet. Pick a seat and use <b>Capture response</b> (Smaart roaming mic + FOH) or <b>Import</b> a Smaart ASCII export.</div>`;
+      body.innerHTML = `<div class="fr-empty">No frequency responses yet. Pick an area and use <b>Capture response</b> (Smaart roaming mic + FOH) or <b>Import</b> a Smaart ASCII export.</div>`;
       delete body.dataset.mode;
       return;
     }
@@ -640,7 +638,7 @@
     let msg;
     try {
       await Store.addSpectrum({ seat_id: seatId, seat_bins: seatT, booth_bins: boothT, source, measured_at: when });
-      msg = `Frequency response saved · ${seatId}`;
+      msg = `Frequency response saved · ${(seatById.get(seatId) || { name: seatId }).name}`;
     } catch (err) { msg = 'Could not save: ' + err.message; }
     if (withBands) {
       const list = bandReadingsFrom(seatId, seatT, boothT, when);
@@ -667,10 +665,10 @@
     const s = seatById.get(selectedId);
     if (!s) return;
     const liveFOH = Smaart.liveSpectrum('booth');
-    openModal(`Import response · ${s.id}`, `
+    openModal(`Import response · ${s.name}`, `
       <p class="hint" style="margin-top:12px">In Smaart, export the trace as ASCII text (right-click the trace → Export, or File → Export), then paste it or pick the file.
         Any <b>frequency, dB</b> columns work — FFT or 1/3-octave; it's converted to 31 third-octave bands. A plain list of 31 values (20 Hz → 20 kHz) also works.</p>
-      <label>Seat trace (measurement mic at this seat)</label>
+      <label>Area trace (measurement mic in this area)</label>
       <textarea id="imp-seat" placeholder="Hz	dB&#10;20	78.1&#10;25	79.4&#10;…" style="min-height:90px"></textarea>
       <button class="btn btn-secondary btn-sm" id="imp-seat-file" style="margin-top:6px">Choose file…</button>
       <label>FOH trace (booth mic at the same moment)</label>
@@ -683,7 +681,7 @@
     const status = () => {
       const a = parse('#imp-seat'), b = parse('#imp-foh') || (!$('#imp-foh').value.trim() ? liveFOH : null);
       const cnt = (t) => t ? t.filter(v => v != null).length : 0;
-      $('#imp-status').innerHTML = `Seat: <b>${cnt(a)}</b>/31 bands · FOH: <b>${cnt(b)}</b>/31 bands${!$('#imp-foh').value.trim() && liveFOH ? ' (live)' : ''}`;
+      $('#imp-status').innerHTML = `Area: <b>${cnt(a)}</b>/31 bands · FOH: <b>${cnt(b)}</b>/31 bands${!$('#imp-foh').value.trim() && liveFOH ? ' (live)' : ''}`;
       return [a, b];
     };
     ['#imp-seat', '#imp-foh'].forEach(id => $(id).addEventListener('input', status));
@@ -694,7 +692,7 @@
     status();
     $('#imp-save').onclick = () => {
       const [a, b] = status();
-      if (!a || a.filter(v => v != null).length < 6) { toast('Seat trace: need at least 6 bands of data'); return; }
+      if (!a || a.filter(v => v != null).length < 6) { toast('Area trace: need at least 6 bands of data'); return; }
       if (!b || b.filter(v => v != null).length < 6) { toast('FOH trace: paste it, or connect Smaart for a live FOH response'); return; }
       const withBands = $('#imp-bands').checked;
       closeModal();
@@ -706,9 +704,9 @@
   function progressHtml() {
     const done = seats.filter(x => seatComplete(x.id)).length;
     const pct = seats.length ? Math.round(100 * done / seats.length) : 0;
-    return `<div class="small" style="font-weight:700">Walk-through: ${done} of ${seats.length} seats complete (${pct}%)</div>
+    return `<div class="small" style="font-weight:700">Walk-through: ${done} of ${seats.length} areas complete (${pct}%)</div>
       <div class="progress"><span style="width:${pct}%"></span></div>
-      <p class="hint" style="margin:0 0 10px">Complete = SPL, Low, Lo-Mid and HF all measured, or a frequency response captured. Every measured seat keeps tracking the live FOH.</p>
+      <p class="hint" style="margin:0 0 10px">Complete = SPL, Low, Lo-Mid and HF all measured, or a frequency response captured. Every measured area keeps tracking the live FOH.</p>
       ${done < seats.length ? `<button class="btn btn-secondary btn-sm" id="walk-next" style="margin-bottom:12px">${done ? 'Continue walk-through ›' : 'Start walk-through ›'}</button>` : ''}`;
   }
   function bindProgress() {
@@ -720,7 +718,7 @@
     const real = [...pv.vals.entries()].filter(([, x]) => !x.est);
     const box = $('#summary');
     if (!real.length) {
-      box.innerHTML = progressHtml() + `<p class="hint">No ${esc(metricById(pv.basis).label)} readings yet. Pick a seat and enter what the measurement mic reads there next to the booth value.</p>`;
+      box.innerHTML = progressHtml() + `<p class="hint">No ${esc(metricById(pv.basis).label)} readings yet. Pick an area and enter what the measurement mic reads there next to the booth value.</p>`;
       bindProgress();
       return;
     }
@@ -728,33 +726,25 @@
     const avg = vs.reduce((a, b) => a + b, 0) / vs.length;
     const mn = Math.min(...vs), mx = Math.max(...vs);
     const f = (v) => m.derived || pv.relative ? fmtSigned(v) : fmt(v);
-    const by = {};
-    for (const [id, x] of real) { const s = seatById.get(id); if (s) (by[s.section] = by[s.section] || []).push(x.v); }
-    const tot = {};
-    for (const s of seats) tot[s.section] = (tot[s.section] || 0) + 1;
-    const order = ROOM.sections.map(x => x.name).concat(Object.keys(tot).filter(n => !ROOM.sections.some(x => x.name === n)));
     const loudest = real.reduce((a, b) => b[1].v > a[1].v ? b : a), quietest = real.reduce((a, b) => b[1].v < a[1].v ? b : a);
+    const nm = (id) => esc((seatById.get(id) || { name: id }).name);
+    // one row per area: its value against the room's spread
+    const all = [...pv.vals.values()].map(x => x.v), lo = Math.min(...all), span = Math.max(...all) - lo || 1;
     box.innerHTML = progressHtml() + `
       <div class="tiles" style="margin-bottom:12px">
         <div class="tile" style="cursor:default"><div class="l">Average</div><div class="v">${f(avg)}</div></div>
         <div class="tile" style="cursor:default"><div class="l">Spread</div><div class="v">${fmt(mx - mn)}<small>dB</small></div></div>
-        <div class="tile" data-go="${loudest[0]}"><div class="l">Loudest seat</div><div class="v">${f(mx)}</div><div class="small muted">${esc(loudest[0])}</div></div>
-        <div class="tile" data-go="${quietest[0]}"><div class="l">Quietest seat</div><div class="v">${f(mn)}</div><div class="small muted">${esc(quietest[0])}</div></div>
+        <div class="tile" data-go="${esc(loudest[0])}"><div class="l">Loudest area</div><div class="v">${f(mx)}</div><div class="small muted">${nm(loudest[0])}</div></div>
+        <div class="tile" data-go="${esc(quietest[0])}"><div class="l">Quietest area</div><div class="v">${f(mn)}</div><div class="small muted">${nm(quietest[0])}</div></div>
       </div>
-      ${order.filter(n => tot[n]).map(n => {
-        const a = by[n] || [];
-        const av = a.length ? a.reduce((p, q) => p + q, 0) / a.length : null;
-        return `<div class="sec-row" data-sec="${esc(n)}"><span class="sec-n">${esc(n)}</span>
-          <span class="sec-bar" title="${a.length}/${tot[n]} measured"><span style="width:${Math.round(100 * a.length / tot[n])}%"></span></span>
-          <span class="sec-v">${av == null ? '<span class="muted">—</span>' : f(av)}</span></div>`;
+      ${seats.map(s => {
+        const x = pv.vals.get(s.id);
+        return `<div class="sec-row" data-go="${esc(s.id)}"><span class="sec-n">${esc(s.name)}</span>
+          <span class="sec-bar" title="${x ? (x.est ? 'estimated' : 'measured') : 'not measured'}"><span style="width:${x ? Math.round(8 + 92 * (x.v - lo) / span) : 0}%;${x && x.est ? 'opacity:.5' : ''}"></span></span>
+          <span class="sec-v">${x ? f(x.v) + (x.est ? ' <span class="muted small">est</span>' : '') : '<span class="muted">—</span>'}</span></div>`;
       }).join('')}`;
     bindProgress();
-    box.querySelectorAll('[data-go]').forEach(t => t.onclick = () => { const s = seatById.get(t.dataset.go); selectSeat(s.id, true); SeatMap.centerOn(s.x, s.y); });
-    box.querySelectorAll('[data-sec]').forEach(r => r.onclick = () => {
-      const list = seats.filter(s => s.section === r.dataset.sec);
-      const first = list.find(s => !latest.get(s.id + '|' + pv.basis)) || list[0];
-      if (first) { selectSeat(first.id, true); SeatMap.centerOn(first.x, first.y); }
-    });
+    box.querySelectorAll('[data-go]').forEach(t => t.onclick = () => { const s = seatById.get(t.dataset.go); if (s) { selectSeat(s.id, true); SeatMap.centerOn(s.x, s.y); } });
   }
 
   function tooltipHtml(id) {
@@ -769,60 +759,96 @@
       v = `<span class="tv">${m.derived || pv.relative ? fmtSigned(x.v) : fmt(x.v)}</span> <span class="tm">${unit}${x.est ? ' · est.' : ''}</span>`;
       if (!m.derived && !pv.relative) v += `<br><span class="tm">${fmtSigned(x.delta)} dB vs booth</span>`;
     }
-    return `<b>${esc(s.section)}</b> · Row ${s.row} · Seat ${s.seat}<br>${v}`;
+    return `<b>${esc(s.name)}</b><br>${v}`;
   }
 
   // ------------------------------------------------------------ modes
   function setMapMode(mode) {
+    if (mode !== 'draw') redrawId = null;
     mapMode = mode;
     SeatMap.setMode(mode);
     const ban = $('#map-banner');
     $('#btn-booth').classList.toggle('on', mode === 'booth');
-    $('#btn-edit').classList.toggle('on', mode === 'edit');
+    $('#btn-edit').classList.toggle('on', mode === 'edit' || mode === 'draw');
     if (mode === 'view') { ban.classList.remove('show'); return; }
+    if (mode === 'draw') { renderDrawBanner(); ban.classList.add('show'); return; }
     ban.innerHTML = mode === 'booth'
       ? '<span>📍 Click the map where the FOH mix position is.</span><button class="btn btn-sm" id="ban-done">Cancel</button>'
-      : '<span>✏️ Editing seats — click a seat to relabel or remove it, click empty floor to add one.</span><button class="btn btn-sm" id="ban-done">Done</button>';
+      : '<span>✏️ Editing areas — click an area to rename, reorder, redraw or remove it.</span><button class="btn btn-sm btn-primary" id="ban-draw">Draw area</button><button class="btn btn-sm" id="ban-done">Done</button>';
     ban.classList.add('show');
     $('#ban-done').onclick = () => setMapMode('view');
+    if ($('#ban-draw')) $('#ban-draw').onclick = () => setMapMode('draw');
   }
 
-  function openSeatEditor(id, point) {
-    const s = id ? seatById.get(id) : null;
-    const sections = [...new Set(seats.map(x => x.section))];
-    let guess = { section: sections[0], row: 1, seat: 1 };
-    if (!s && point) {
-      const near = seats.reduce((a, b) => Math.hypot(b.x - point.x, b.y - point.y) < Math.hypot(a.x - point.x, a.y - point.y) ? b : a);
-      guess = { section: near.section, row: near.row, seat: near.seat + 1, rot: near.rot, code: near.code };
+  function renderDrawBanner() {
+    if (mapMode !== 'draw') return;
+    const n = SeatMap.drawingCorners, what = redrawId ? `the new outline of ${esc(seatById.get(redrawId).name)}` : 'the new area';
+    $('#map-banner').innerHTML = `<span>✏️ Click each corner of ${what}${n ? ` · ${n} corner${n > 1 ? 's' : ''}` : ''}. Click the first corner, double-click or press Enter to finish; Backspace undoes a corner.</span>
+      ${n >= 3 ? '<button class="btn btn-sm btn-primary" id="ban-finish">Finish</button>' : ''}<button class="btn btn-sm" id="ban-cancel">Cancel</button>`;
+    if ($('#ban-finish')) $('#ban-finish').onclick = () => SeatMap.finishDraw();
+    $('#ban-cancel').onclick = () => setMapMode('edit');
+  }
+
+  function afterAreasChanged(selectId) {
+    rebuildSeats();
+    SeatMap.setBounds(ROOM.viewBox);
+    SeatMap.setAreas(seats);
+    if (selectId !== undefined) selectedId = selectId && seatById.has(selectId) ? selectId : null;
+    else if (selectedId && !seatById.has(selectedId)) selectedId = null;
+    SeatMap.select(selectedId);
+    dataVersion++;
+    render(); renderSeatPanel(true);
+  }
+
+  // a finished outline: a new area (asks for its name) or the redrawn outline of an existing one
+  function onAreaDrawn(pts) {
+    if (redrawId) {
+      const id = redrawId;
+      Store.redrawArea(id, pts);
+      toast(`New outline for ${seatById.get(id).name}`);
+      setMapMode('edit'); afterAreasChanged(id);
+      return;
     }
-    const cur = s || guess;
-    openModal(s ? 'Edit seat' : 'Add seat', `
-      <label>Section</label>
-      <input id="se-section" list="se-sections" value="${esc(cur.section)}">
-      <datalist id="se-sections">${sections.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
-      <div class="form-row"><div><label>Row</label><input id="se-row" type="number" min="1" value="${cur.row}"></div>
-      <div><label>Seat</label><input id="se-seat" type="number" min="1" value="${cur.seat}"></div></div>
-      ${s ? `<p class="hint" style="margin-top:12px">Seat ID <b>${esc(s.id)}</b> stays the same so its readings follow the new label.</p>` : ''}`,
-      `${s ? '<button class="btn btn-danger btn-sm" id="se-del" style="margin-right:auto">Remove seat</button>' : ''}
-       <button class="btn btn-secondary btn-sm" data-close>Cancel</button><button class="btn btn-primary btn-sm" id="se-save">Save</button>`);
-    $('#se-save').onclick = () => {
-      const lab = { section: $('#se-section').value.trim() || cur.section, row: +$('#se-row').value || 1, seat: +$('#se-seat').value || 1 };
-      const ed = S().seatEdits;
-      if (s) {
-        const added = ed.added.find(a => a.id === s.id);
-        if (added) Object.assign(added, lab); else ed.labels[s.id] = lab;
-      } else {
-        const code = (seats.find(x => x.section === lab.section) || {}).code || 'X';
-        ed.added.push({ id: `${code}-A${Date.now().toString(36)}`, code, ...lab, x: Math.round(point.x * 10) / 10, y: Math.round(point.y * 10) / 10, rot: guess.rot || 0 });
-      }
-      Store.saveSettings(); closeModal(); rebuildSeats(); SeatMap.setSeats(seats); render();
+    openModal('Name this area', `
+      <label for="ae-name">Name</label><input id="ae-name" placeholder="e.g. Front Left, Balcony, Under balcony" value="Area ${seats.length + 1}">
+      <p class="hint" style="margin-top:10px">It's measured and coloured as one spot. Its readings stay with it if you rename or redraw it later.</p>`,
+      '<button class="btn btn-secondary btn-sm" data-close>Discard</button><button class="btn btn-primary btn-sm" id="ae-save">Add area</button>');
+    const inp = $('#ae-name'); inp.focus(); inp.select();
+    const save = () => {
+      const id = Store.addArea(pts, inp.value);
+      closeModal(); toast(`Added ${Store.room.areas.find(a => a.id === id).name}`);
+      setMapMode('draw'); afterAreasChanged(id);                  // ready to draw the next one
     };
-    if (s) $('#se-del').onclick = () => {
-      const ed = S().seatEdits;
-      if (ed.added.some(a => a.id === s.id)) ed.added = ed.added.filter(a => a.id !== s.id);
-      else ed.deleted.push(s.id);
-      if (selectedId === s.id) selectedId = null;
-      Store.saveSettings(); closeModal(); rebuildSeats(); SeatMap.setSeats(seats); render(); toast('Seat removed');
+    $('#ae-save').onclick = save;
+    inp.onkeydown = (e) => { if (e.key === 'Enter') save(); };
+  }
+
+  function openAreaEditor(id) {
+    const s = seatById.get(id);
+    if (!s) return;
+    const i = seats.indexOf(s);
+    const nR = Store.readings.filter(r => r.seat_id === id).length, nS = Store.spectra.filter(r => r.seat_id === id).length;
+    openModal('Edit area', `
+      <label for="ae-name">Name</label><input id="ae-name" value="${esc(s.name)}">
+      <p class="hint" style="margin-top:10px">Area ${i + 1} of ${seats.length} in the walk-through${nR || nS ? ` · ${nR} reading${nR === 1 ? '' : 's'}, ${nS} response${nS === 1 ? '' : 's'}` : ''}. Renaming or redrawing keeps its measurements.</p>
+      <div class="chips" style="margin-top:8px">
+        <button class="btn btn-secondary btn-sm" id="ae-up" ${i === 0 ? 'disabled' : ''}>↑ Earlier</button>
+        <button class="btn btn-secondary btn-sm" id="ae-down" ${i === seats.length - 1 ? 'disabled' : ''}>↓ Later</button>
+        <button class="btn btn-secondary btn-sm" id="ae-redraw">Redraw outline</button>
+      </div>`,
+      `<button class="btn btn-danger btn-sm" id="ae-del" style="margin-right:auto" ${seats.length <= 1 ? 'disabled' : ''}>Remove area</button>
+       <button class="btn btn-secondary btn-sm" data-close>Cancel</button><button class="btn btn-primary btn-sm" id="ae-save">Save</button>`);
+    const inp = $('#ae-name'); inp.focus(); inp.select();
+    const save = () => { Store.renameArea(id, inp.value); closeModal(); afterAreasChanged(); };
+    $('#ae-save').onclick = save;
+    inp.onkeydown = (e) => { if (e.key === 'Enter') save(); };
+    $('#ae-up').onclick = () => { Store.moveArea(id, -1); closeModal(); afterAreasChanged(); openAreaEditor(id); };
+    $('#ae-down').onclick = () => { Store.moveArea(id, 1); closeModal(); afterAreasChanged(); openAreaEditor(id); };
+    $('#ae-redraw').onclick = () => { closeModal(); setMapMode('draw'); redrawId = id; renderDrawBanner(); };
+    $('#ae-del').onclick = () => {
+      if (!confirm(`Remove ${s.name}?${nR || nS ? ` Its ${nR + nS} measurement${nR + nS === 1 ? '' : 's'} stay in the data file but won't be shown.` : ''}`)) return;
+      try { Store.deleteArea(id); } catch (e) { toast(e.message); return; }
+      closeModal(); toast(`Removed ${s.name}`); afterAreasChanged();
     };
   }
 
@@ -875,7 +901,7 @@
             <input data-sp="${x.id}" value="${esc(c.seatPaths[x.id] || '')}" style="text-align:left;font-size:12.5px">`).join('')}
         </div>
         <div class="form-row"><div><label>Booth spectrum path <span class="muted">(FOH response + band levels)</span></label><input id="sm-spec" value="${esc(c.spectrumPath)}"></div>
-          <div><label>Roaming mic spectrum path <span class="muted">(seat response)</span></label><input id="sm-seatspec" value="${esc(c.seatSpectrumPath || '')}"></div></div>
+          <div><label>Roaming mic spectrum path <span class="muted">(area response)</span></label><input id="sm-seatspec" value="${esc(c.seatSpectrumPath || '')}"></div></div>
       </div>
       <label>Smoothing (0 = none, 0.9 = heavy)</label><input id="sm-smooth" type="number" min="0" max="0.95" step="0.05" value="${c.smoothing}" style="max-width:160px">
 
@@ -1006,22 +1032,19 @@
 
   // ------------------------------------------------------------ Data dialog
   function openData() {
-    const ed = S().seatEdits;
-    const edits = ed.deleted.length + ed.added.length + Object.keys(ed.labels).length;
     openModal('Data', `
       <div class="section-h">Storage</div>
       <p class="hint">Everything is saved on this computer. To move a venue (with or without its measurements) to another computer, use <b>Settings → Export venue profile</b>.</p>
       <div class="section-h">Readings</div>
-      <p class="hint">${Store.readings.length} readings across ${new Set(Store.readings.map(r => r.seat_id)).size} seats · ${Store.spectra.length} frequency responses across ${latestSp.size} seats.</p>
+      <p class="hint">${Store.readings.length} readings across ${new Set(Store.readings.filter(r => seatById.has(r.seat_id)).map(r => r.seat_id)).size} areas · ${Store.spectra.length} frequency responses across ${[...latestSp.keys()].filter(id => seatById.has(id)).length} areas.</p>
       <div class="chips" style="margin-top:8px">
         <button class="btn btn-secondary btn-sm" id="d-export">Export CSV</button>
         <button class="btn btn-secondary btn-sm" id="d-import">Import CSV…</button>
         <button class="btn btn-secondary btn-sm" id="d-export-fr">Export responses CSV</button>
         <button class="btn btn-danger btn-sm" id="d-clear">Clear all measurements</button>
       </div>
-      <div class="section-h">Seats</div>
-      <p class="hint">${seats.length} seats (${ROOM.seats.length} from the auditorium file${edits ? `, ${edits} manual edit${edits > 1 ? 's' : ''}` : ''}). Use <b>Edit seats</b> in the top bar to fix labels or add/remove seats.</p>
-      ${edits ? '<button class="btn btn-secondary btn-sm" id="d-restore" style="margin-top:8px">Restore original seats</button>' : ''}`,
+      <div class="section-h">Areas</div>
+      <p class="hint">${seats.length} area${seats.length === 1 ? '' : 's'}. Use <b>Edit areas</b> in the top bar to draw, rename, reorder or remove them.</p>`,
       '<button class="btn btn-primary btn-sm" data-close>Done</button>');
     $('#d-export').onclick = exportCsv;
     $('#d-export-fr').onclick = exportSpectraCsv;
@@ -1034,19 +1057,14 @@
       try { await Store.clearReadings(); toast('All readings cleared'); } catch (err) { toast('Clear failed: ' + err.message); }
       closeModal(); afterReadingsChanged();
     };
-    if ($('#d-restore')) $('#d-restore').onclick = () => {
-      if (!confirm('Undo all seat edits and go back to the seats detected from the drawing?')) return;
-      S().seatEdits = { deleted: [], added: [], labels: {} };
-      Store.saveSettings(); rebuildSeats(); SeatMap.setSeats(seats); closeModal(); render();
-    };
   }
 
-  const CSV_COLS = ['seat_id', 'section', 'row', 'seat', 'metric', 'seat_value', 'booth_value', 'delta', 'notes', 'measured_at'];
+  const CSV_COLS = ['area_id', 'area', 'metric', 'area_value', 'booth_value', 'delta', 'notes', 'measured_at'];
+  const csvQ = (v) => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   function exportCsv() {
-    const q = (v) => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const lines = [CSV_COLS.join(',')].concat(Store.readings.map(r => {
       const s = seatById.get(r.seat_id) || {};
-      return [r.seat_id, s.section, s.row, s.seat, r.metric, r.seat_value, r.booth_value, r.delta, r.notes, r.measured_at].map(q).join(',');
+      return [r.seat_id, s.name, r.metric, r.seat_value, r.booth_value, r.delta, r.notes, r.measured_at].map(csvQ).join(',');
     }));
     downloadCsv('roomio-readings', lines);
   }
@@ -1059,13 +1077,13 @@
     } catch (e) { toast('Export failed: ' + e.message); }
   }
 
-  // one row per capture per mic: seat_id, ..., trace (seat|foh), then the 31 band levels
+  // one row per capture per mic: area_id, area, ..., trace (area|foh), then the 31 band levels
   function exportSpectraCsv() {
-    const lines = [['seat_id', 'section', 'row', 'seat', 'measured_at', 'source', 'trace', ...THIRDS.map(f => fmtHz(f) + 'Hz')].join(',')];
+    const lines = [['area_id', 'area', 'measured_at', 'source', 'trace', ...THIRDS.map(f => fmtHz(f) + 'Hz')].join(',')];
     for (const r of Store.spectra) {
       const s = seatById.get(r.seat_id) || {};
-      for (const [trace, bins] of [['seat', r.seat_bins], ['foh', r.booth_bins]]) {
-        lines.push([r.seat_id, `"${(s.section || '').replace(/"/g, '""')}"`, s.row ?? '', s.seat ?? '', r.measured_at, r.source || '', trace, ...bins.map(v => v == null ? '' : v)].join(','));
+      for (const [trace, bins] of [['area', r.seat_bins], ['foh', r.booth_bins]]) {
+        lines.push([csvQ(r.seat_id), csvQ(s.name), r.measured_at, r.source || '', trace, ...bins.map(v => v == null ? '' : v)].join(','));
       }
     }
     downloadCsv('roomio-responses', lines);
@@ -1089,14 +1107,19 @@
     if (!file) return;
     const rows = parseCsv(file.text);
     const head = rows.shift().map(h => h.trim().toLowerCase());
-    const ix = (k) => head.indexOf(k);
-    if (ix('seat_id') < 0 || ix('metric') < 0 || ix('seat_value') < 0 || ix('booth_value') < 0) { toast('CSV needs seat_id, metric, seat_value, booth_value columns'); return; }
+    // area_id / area_value (v2); seat_id / seat_value from older exports still work
+    const ix = (...ks) => { for (const k of ks) { const i = head.indexOf(k); if (i >= 0) return i; } return -1; };
+    const cId = ix('area_id', 'seat_id'), cName = ix('area'), cVal = ix('area_value', 'seat_value');
+    if ((cId < 0 && cName < 0) || ix('metric') < 0 || cVal < 0 || ix('booth_value') < 0) { toast('CSV needs area_id (or area), metric, area_value, booth_value columns'); return; }
+    const byName = new Map(seats.map(s => [s.name.toLowerCase(), s.id]));
     const list = [];
     let skipped = 0;
     for (const r of rows) {
-      const m = r[ix('metric')].trim(), sv = parseFloat(r[ix('seat_value')]), bv = parseFloat(r[ix('booth_value')]);
-      if (!seatById.has(r[ix('seat_id')].trim()) || !MEASURED.some(x => x.id === m) || !isFinite(sv) || !isFinite(bv)) { skipped++; continue; }
-      list.push({ seat_id: r[ix('seat_id')].trim(), metric: m, seat_value: sv, booth_value: bv,
+      const m = r[ix('metric')].trim(), sv = parseFloat(r[cVal]), bv = parseFloat(r[ix('booth_value')]);
+      let id = cId >= 0 ? (r[cId] || '').trim() : '';
+      if (!seatById.has(id) && cName >= 0) id = byName.get((r[cName] || '').trim().toLowerCase()) || id;
+      if (!seatById.has(id) || !MEASURED.some(x => x.id === m) || !isFinite(sv) || !isFinite(bv)) { skipped++; continue; }
+      list.push({ seat_id: id, metric: m, seat_value: sv, booth_value: bv,
         notes: ix('notes') >= 0 ? r[ix('notes')] : '', measured_at: ix('measured_at') >= 0 && r[ix('measured_at')] ? r[ix('measured_at')] : undefined });
     }
     if (!list.length) { toast('No valid rows found'); return; }
@@ -1133,7 +1156,7 @@
       <button class="btn btn-primary btn-sm" id="st-exit-demo" style="margin-left:8px">Exit demo</button></div>` : '';
     openModal('Settings', `${demoNote}
       <div class="section-h">Venue</div>
-      <p class="hint"><b>${esc(ROOM.name)}</b> · ${seats.length} seats · ${ROOM.sections.length} section${ROOM.sections.length === 1 ? '' : 's'}
+      <p class="hint"><b>${esc(ROOM.name)}</b> · ${seats.length} area${seats.length === 1 ? '' : 's'}
         · FOH at x ${fmt(f.x, 2)}, y ${fmt(f.y, 2)} ${esc(ROOM.units)}</p>
       ${info.demo ? '' : `<div class="chips" style="margin-top:8px">
         <button class="btn btn-secondary btn-sm" id="st-new">New venue…</button>
@@ -1234,7 +1257,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     $('#theme-toggle').onclick = toggleTheme;
     $('#btn-booth').onclick = () => setMapMode(mapMode === 'booth' ? 'view' : 'booth');
-    $('#btn-edit').onclick = () => setMapMode(mapMode === 'edit' ? 'view' : 'edit');
+    $('#btn-edit').onclick = () => setMapMode(mapMode === 'edit' || mapMode === 'draw' ? 'view' : 'edit');
     $('#btn-smaart').onclick = openSmaart;
     $('#smaart-pill').onclick = openSmaart;
     $('#btn-data').onclick = openData;
@@ -1244,7 +1267,7 @@
     $('#zoom-fit').onclick = () => SeatMap.fit();
     boot().catch(err => {
       console.error(err);
-      $('#page-title').textContent = 'Could not load the seat map';
+      $('#page-title').textContent = 'Could not load the room map';
       $('#page-subtitle').textContent = err.message;
     });
   });

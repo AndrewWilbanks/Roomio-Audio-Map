@@ -39,12 +39,12 @@ async function main() {
   log('pill', await js(`return document.querySelector('#smaart-pill .txt').textContent`));
   log('live booth SPL', await js(`const b = Smaart.booth('spl'); return b.source + ' ' + (b.value && b.value.toFixed(1))`));
   log('live FOH spectrum bands', await js(`const s = Smaart.liveSpectrum('booth'); return s ? s.length : 0`));
-  log('seats colored / total', await js(`return document.querySelectorAll('.seat:not(.empty)').length + ' / ' + document.querySelectorAll('.seat').length`));
+  log('areas colored / total', await js(`return document.querySelectorAll('.area:not(.empty)').length + ' / ' + document.querySelectorAll('.area').length`));
   log('readings / responses', await js(`return Store.readings.length + ' / ' + Store.spectra.length`));
-  const v1 = await js(`return [...document.querySelectorAll('.seat:not(.empty):not(.est)')].slice(0, 3).map(r => r.getAttribute('fill')).join(' ')`);
+  const v1 = await js(`return [...document.querySelectorAll('.area:not(.empty):not(.est)')].slice(0, 3).map(r => r.getAttribute('fill')).join(' ')`);
   await sleep(4000);
-  const v2 = await js(`return [...document.querySelectorAll('.seat:not(.empty):not(.est)')].slice(0, 3).map(r => r.getAttribute('fill')).join(' ')`);
-  log('seat colours follow FOH', v1 !== v2 ? 'yes (changed over 4 s)' : 'NO CHANGE');
+  const v2 = await js(`return [...document.querySelectorAll('.area:not(.empty):not(.est)')].slice(0, 3).map(r => r.getAttribute('fill')).join(' ')`);
+  log('area colours follow FOH', v1 !== v2 ? 'yes (changed over 4 s)' : 'NO CHANGE');
   await js(`document.getElementById('btn-settings').click(); await new Promise(r => setTimeout(r, 300));`);
   log('Settings in demo', await js(`return [...document.querySelectorAll('.modal button')].map(b => b.textContent.trim()).filter(Boolean).join(' | ')`));
   await js(`document.getElementById('st-exit-demo').click();`);

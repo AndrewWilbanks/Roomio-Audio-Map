@@ -281,7 +281,7 @@ handle('profile:import', async () => {
     const { response } = await dialog.showMessageBox(win, {
       type: 'question', buttons: ['Replace current venue', 'Cancel'], defaultId: 0, cancelId: 1,
       message: `Import “${s.name}”?`,
-      detail: `${s.seats} seats${s.readings || s.spectra ? `, ${s.readings} readings, ${s.spectra} frequency responses` : ', no measurements'}.\n\n` +
+      detail: `${s.areas} area${s.areas === 1 ? '' : 's'}${s.readings || s.spectra ? `, ${s.readings} readings, ${s.spectra} frequency responses` : ', no measurements'}.\n\n` +
         `“${cur.auditorium.name}” and its measurements will be kept as a backup inside Roomio's data. The Smaart password isn't part of a profile — enter it again if Smaart uses one.`,
     });
     if (response !== 0) { store.setDemo(wasDemo); return null; }

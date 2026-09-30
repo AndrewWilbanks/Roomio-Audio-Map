@@ -69,7 +69,7 @@ async function main() {
   await new Promise(r => ws.on('open', r));
   ws.on('message', onMsg);
   await sleep(1000);
-  log('after save', await evalJs(`return location.pathname.split('/').pop() + ' · ' + document.getElementById('page-eyebrow').textContent + ' · ' + document.querySelectorAll('.seat').length + ' seats'`));
+  log('after save', await evalJs(`return location.pathname.split('/').pop() + ' · ' + document.getElementById('page-eyebrow').textContent + ' · ' + document.querySelectorAll('.area').length + ' areas'`));
 
   const files = fs.readdirSync(userData).filter(f => /venue|measurements|credentials/.test(f));
   log('userData files', files);

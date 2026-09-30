@@ -12,7 +12,7 @@ const hall = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/examples/example-h
 fs.writeFileSync(path.join(userData, 'venue.json'), JSON.stringify({
   schemaVersion: 1, auditorium: hall, foh: { x: 0, y: 1.5 },
   smaart: { host: '127.0.0.1', port: 26000, path: '/api/v4/', autoConnect: true, mode: 'v4' },   // built-in Smaart v9: no mapping
-  seatEdits: { deleted: [], added: [], labels: {} }, preferences: {},
+  preferences: {},
 }));
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));

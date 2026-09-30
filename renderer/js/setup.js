@@ -28,6 +28,7 @@
     $('#btn-back').hidden = step === 1;
     $('#btn-next').textContent = step === 4 ? 'Save venue & open' : 'Next';
     $('#nav-err').textContent = '';
+    if (step === 1 && PlanImport.active) { mapReady = null; PlanImport.attach(); }   // the map belongs to the plan again
     if (step === 2) enterPlacement();
     if (step === 4) renderReview();
     updateNext();
@@ -69,7 +70,7 @@
     parseSource();
   }
 
-  // a floor plan's seats: validated like any auditorium file
+  // a floor plan's areas: validated like any auditorium file
   function parseObject(a) {
     const r = Auditorium.parseAuditoriumJson(a);
     state.auditorium = r.ok ? r.auditorium : null;
@@ -97,14 +98,14 @@
     const box = $('#result');
     box.hidden = false;
     const src = state.source;
-    let html = `<div class="result-file">${esc(src.name)} <span class="muted">· ${src.kind === 'plan' ? 'seats found in the floor plan' : src.kind.toUpperCase()}</span></div>`;
+    let html = `<div class="result-file">${esc(src.name)} <span class="muted">· ${src.kind === 'plan' ? 'areas drawn on the floor plan' : src.kind.toUpperCase()}</span></div>`;
     if (r.ok) {
       const R = state.room, a = r.auditorium;
-      const xs = a.seats.map(s => s.x), ys = a.seats.map(s => s.y);
+      const xs = a.areas.flatMap(x => x.points.map(q => q[0])), ys = a.areas.flatMap(x => x.points.map(q => q[1]));
       const span = (v) => (Math.max(...v) - Math.min(...v)).toFixed(1);
-      html += `<div class="result-ok">✓ <b>${esc(a.name)}</b> — ${a.seats.length} seats in ${R.sections.length} section${R.sections.length === 1 ? '' : 's'}
-        · ${span(xs)} × ${span(ys)} ${esc(a.units)}${a.background ? ' · with floor-plan image' : ''}${a.stage ? ' · stage set' : ''}</div>
-        <div class="result-secs">${R.sections.slice(0, 16).map(s => `<span class="badge none">${esc(s.name)} · ${s.seats}</span>`).join(' ')}${R.sections.length > 16 ? ` <span class="muted small">+${R.sections.length - 16} more</span>` : ''}</div>`;
+      html += `<div class="result-ok">✓ <b>${esc(a.name)}</b> — ${a.areas.length} area${a.areas.length === 1 ? '' : 's'}
+        · ${span(xs)} × ${span(ys)} ${a.units === 'px' ? 'drawing units' : esc(a.units)}${a.background ? ' · with floor-plan image' : ''}${a.stage ? ' · stage set' : ''}</div>
+        <div class="result-secs">${R.areas.slice(0, 24).map(s => `<span class="badge none">${esc(s.name)}</span>`).join(' ')}${R.areas.length > 24 ? ` <span class="muted small">+${R.areas.length - 24} more</span>` : ''}</div>`;
     } else {
       html += `<div class="result-bad">This file can't be used yet — fix ${r.errors.length === 1 ? 'this' : 'these'} and choose it again:</div>
         <ul class="errs">${r.errors.map(e => `<li>${esc(e)}</li>`).join('')}</ul>`;
@@ -127,7 +128,7 @@
       const wrap = $('#setup-map');
       [...wrap.children].forEach(c => { if (!c.classList.contains('map-tools')) c.remove(); });
       SeatMap.init(wrap, R);
-      SeatMap.setSeats(R.seats);
+      SeatMap.setAreas(R.areas);
       SeatMap.setMode('booth');
       mapReady = R;
     }
@@ -149,7 +150,7 @@
     const file = { x: round(p.x), y: round(p.y * state.room.flip) };
     if (state.placing === 'stage') {
       state.auditorium.stage = { x: file.x, y: file.y, label: (state.auditorium.stage && state.auditorium.stage.label) || 'Stage' };
-      // stage changes seat facing + labels: rebuild the map
+      // the stage label moves: rebuild the map
       state.room = Auditorium.normalise(state.auditorium);
       mapReady = null;
       setPlacing('foh');
@@ -166,7 +167,7 @@
     state.placing = what;
     document.querySelectorAll('[data-place]').forEach(b => b.classList.toggle('on', b.dataset.place === what));
     $('#place-hint').textContent = what === 'stage'
-      ? 'Click the centre front of the stage. Seats will face it, and row numbering reads from it.'
+      ? 'Click the centre front of the stage. It\'s shown on the map for orientation.'
       : 'Click the map where the FOH mix position (the Smaart measurement mic at the booth) is. Or type the position:';
   }
 
@@ -207,7 +208,7 @@
     const a = state.auditorium, c = smaartCfg(), R = state.room;
     const f = state.foh;
     $('#review').innerHTML = `
-      <dt>Venue</dt><dd><b>${esc(a.name)}</b> · ${a.seats.length} seats · ${R.sections.length} section${R.sections.length === 1 ? '' : 's'}</dd>
+      <dt>Venue</dt><dd><b>${esc(a.name)}</b> · ${a.areas.length} area${a.areas.length === 1 ? '' : 's'}</dd>
       <dt>FOH</dt><dd>x ${f.x}, y ${f.y}${f.z != null ? `, z ${f.z}` : ''} ${esc(a.units)}</dd>
       <dt>Stage</dt><dd>${a.stage ? `x ${a.stage.x}, y ${a.stage.y}` : '<span class="muted">not set</span>'}</dd>
       <dt>Smaart</dt><dd>ws://${esc(c.host)}:${c.port}${esc(c.path)} ${$('#sm-pw').value ? '· password saved (encrypted)' : ''}
@@ -217,12 +218,11 @@
 
   async function save() {
     const venue = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       createdAt: new Date().toISOString(),
       auditorium: state.auditorium,
       foh: state.foh,
       smaart: smaartCfg(),
-      seatEdits: { deleted: [], added: [], labels: {} },
       preferences: {},
     };
     const btn = $('#btn-next');

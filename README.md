@@ -1,10 +1,10 @@
 # Roomio
 
-See what every seat in your room hears. Roomio draws your auditorium seat by seat and colours each seat by level — overall SPL, low-end impact, low-mids, high frequencies, or how far it is from what you hear at FOH. You measure each seat once; after that every seat follows the live reading from **Smaart** at the mix position.
+See what each part of your room hears. You outline the areas of your auditorium on its floor plan — *Front Left, Centre, Balcony, Under balcony*, whatever you want to compare — and Roomio colours each area by level: overall SPL, low-end impact, low-mids, high frequencies, or how far it is from what you hear at FOH. You measure each area once; after that every area follows the live reading from **Smaart** at the mix position.
 
 - One map per measurement, switched from the dropdown at the top
-- Each seat's frequency response against FOH, plus the room average
-- Seats track the live FOH level *and* the live FOH spectrum
+- Each area's frequency response against FOH, plus the room average
+- Areas track the live FOH level *and* the live FOH spectrum
 - Works offline; everything stays on your computer
 
 ---
@@ -52,10 +52,10 @@ Roomio reads Smaart through Smaart's built-in API (Smaart v9, or Smaart 8.3+ / D
 
 The first time you open the app (or after **Reset Venue**) a four-step setup appears.
 
-**Just looking?** Press **Try the demo** on the first step: a sample hall with pre-measured seats and simulated Smaart data, so you can see everything working without Smaart. It never touches your own venue — leave it with **Exit demo**.
+**Just looking?** Press **Try the demo** on the first step: a sample hall with pre-measured areas and simulated Smaart data, so you can see everything working without Smaart. It never touches your own venue — leave it with **Exit demo**.
 
-1. **Auditorium** — drop in a **floor plan** of the room (PDF, PNG, JPEG or SVG) and Roomio finds the seats — see [Start from a floor plan](#start-from-a-floor-plan). Or use an auditorium file (`.json`) or seat list (`.csv`): the app checks it and either shows a summary (seats, sections, size) or lists exactly what to fix, with line numbers. No file yet? Try **Use the example hall**, or **Import a venue profile…** if you exported one from another computer. See [the file format](#5-the-auditorium-file) below.
-2. **FOH position** — click the map where your FOH measurement mic is, or type its x / y (and optional height) in your file's units. If your file has no stage, you can place it here too — seats then face it.
+1. **Auditorium** — drop in a **floor plan** of the room (PDF, PNG, JPEG or SVG) and outline its areas — see [Start from a floor plan](#start-from-a-floor-plan). Or use an auditorium file (`.json`), or a seat list (`.csv`, or an older seat-by-seat `.json`) — each section of seats becomes one area. The app checks the file and either shows a summary or lists exactly what to fix, with line numbers. No file yet? Try **Use the example hall**, or **Import a venue profile…** if you exported one from another computer. See [the file format](#5-the-auditorium-file) below.
+2. **FOH position** — click the map where your FOH measurement mic is, or type its x / y (and optional height) in your file's units. If your file has no stage, you can place it here too.
 3. **Smaart** — host, port, Smaart version, and the API password if you set one. Press **Test connection**; you'll get a plain answer such as *"Connected and logged in to Smaart"* or *"Nothing is listening at localhost:26000 — start Smaart and enable its API."* You can skip this and connect later.
 4. **Save** — the venue opens.
 
@@ -63,16 +63,15 @@ The first time you open the app (or after **Reset Venue**) a four-step setup app
 
 ### Start from a floor plan
 
-Any top-down plan works: an architect's PDF or CAD export, a seating chart, a scan or a photo of a printed plan (taken straight on). Multi-page PDFs have a page picker.
+Any top-down plan works: an architect's PDF or CAD export, a seating chart, a scan or a photo of a printed plan (taken straight on). Multi-page PDFs have a page picker. Everything runs on your computer; the plan isn't sent anywhere.
 
-1. *(Optional)* **Seating area** — drag a rectangle around the seats. Roomio then only looks inside it, so nothing gets picked up in the lobby, on the stage or in a legend. **Remove area** searches the whole plan again; seats you add by hand can go anywhere.
-2. **Box a seat** — zoom in (scroll, or **+**) and drag a box around one seat. Roomio then finds every seat drawn the same way, at any angle, usually in a few seconds. Everything runs on your computer; the plan isn't sent anywhere.
-3. **Check the dots** — each section gets its own colour and letter. With **Add / remove**, click a dot to remove it or click an empty spot to add a seat. Drag to pan in any mode. Too few seats found? Raise **Sensitivity**; false ones? Lower it — or box a different, cleaner seat.
-4. **Stage** — Roomio works out where the stage is from the way the rows face (shown as **STAGE**). If it's wrong, choose **Stage** and click the right spot — rows renumber from it.
-5. **Scale** — pick feet or metres, then either type the **seat spacing** (centre to centre; 1.75 ft / 0.53 m is typical) or choose **Measure**, click two points a known distance apart (a wall, a stage edge) and type the distance.
-6. **Use these seats** — the result is checked like any auditorium file, and the plan is kept as the map's background.
+1. **Draw area** — click each corner of an area on the plan. Click the first corner again (or double-click, or press **Enter**) to finish it, then type its name. **Backspace** undoes the last corner. Drag to pan and scroll to zoom at any time. Draw the areas in the order you'll walk the room — that's the walk-through order (**↑** moves an area earlier).
+2. Fix things in the **Areas** list beside the plan: rename, **✎** redraw an outline, **✕** remove.
+3. **Stage** — click the centre front of the stage (it's shown on the map for orientation).
+4. **Measure** *(optional)* — click two points a known distance apart (a wall, the stage edge) and type the distance in feet or metres. Without it, sizes are in drawing units — everything still works.
+5. **Use these areas** — the plan, cropped to your areas, becomes the map's background.
 
-Seats are labelled *section-row-seat* (`B-4-12`): sections A, B, C… from the audience's left, row 1 nearest the stage, seat 1 on the audience's left. A photo taken from inside the room (at an angle) won't work — use a plan, or trace over one.
+How big should an area be? Small enough that one reading is fair for everyone in it — a block of seats that sits at the same distance and angle to the PA. Typical rooms end up with 6–20 areas.
 
 ---
 
@@ -99,7 +98,7 @@ Roomio speaks the Smaart v9 API directly, so there's nothing to map. In Smaart:
 2. **Calibrate** the FOH measurement mic's input — its SPL meter drives the SPL page (default metric *SPL A Slow*; change it under **SPL metric**).
 3. Start a **spectrum (RTA) measurement** on the FOH mic — it drives the FOH frequency response and the Low / Lo-Mid / HF levels.
 
-With one mic, that's it: FOH uses the first calibrated input and the first running spectrum measurement. With more, pick them in **Smaart → Smaart sources**, and choose a **Roaming mic** input and measurement to use **Capture from Smaart** at each seat. **Test** lists what Smaart is offering. Your choices are part of the venue, so they move with venue profiles.
+With one mic, that's it: FOH uses the first calibrated input and the first running spectrum measurement. With more, pick them in **Smaart → Smaart sources**, and choose a **Roaming mic** input and measurement to use **Capture from Smaart** in each area. **Test** lists what Smaart is offering. Your choices are part of the venue, so they move with venue profiles.
 
 Smaart Suite does all of the above; Smaart RT/LE have spectrum but no SPL metering, and Smaart SPL has SPL but no spectrum (type or import the missing parts).
 
@@ -107,11 +106,15 @@ Smaart Suite does all of the above; Smaart RT/LE have spectrum but no SPL meteri
 
 ### Measure the room
 
-1. Pick a seat (or **Start walk-through** in Room summary).
-2. With a roaming measurement mic at seated ear height, press **Capture response** — this saves the seat's frequency response against FOH and its Low / Lo-Mid / HF levels in one go. Or type the seat and booth readings and **Save readings**.
-3. The app jumps to the next seat. **Next unmeasured ›** skips to the next seat that's missing data; the progress bar counts toward every seat.
+1. Pick an area (or **Start walk-through** in Room summary).
+2. Put the roaming measurement mic at seated ear height at a typical seat in that area and press **Capture response** — this saves the area's frequency response against FOH and its Low / Lo-Mid / HF levels in one go. Or type the area and booth readings and **Save readings**.
+3. The app jumps to the next area. **Next unmeasured ›** skips to the next area that's missing data; the progress bar counts toward every area.
 
-Each seat keeps its readings and response; the map then shows *live FOH + that seat's difference*, adjusted for how the program's spectrum has changed since you measured.
+Each area keeps its readings and response; the map then shows *live FOH + that area's difference*, adjusted for how the program's spectrum has changed since you measured. **Fill gaps** estimates unmeasured areas from their measured neighbours.
+
+### Edit areas
+
+**Edit areas** in the top bar: **Draw area** to add one (click its corners as in setup), or click an area to rename it, move it earlier or later in the walk-through, **Redraw outline**, or remove it. Renaming and redrawing keep its measurements.
 
 ### Data
 
@@ -121,22 +124,23 @@ Each seat keeps its readings and response; the map then shows *live FOH + that s
 
 ## 5. The auditorium file
 
-Two ways to describe your room. Any consistent unit works (feet, metres, drawing units) — the app sizes seats from the spacing between them.
+Setup writes this for you from a floor plan; you only need it to make or edit a room by hand. Any consistent unit works (feet, metres, drawing units).
 
 ### JSON (`*.auditorium.json`)
 
 ```json
 {
   "format": "roomio-auditorium",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "Main Auditorium",
   "units": "ft",
   "yAxis": "down",
   "stage": { "x": 0, "y": 0, "label": "Stage" },
   "foh":   { "x": 0, "y": 62 },
-  "seats": [
-    { "id": "A-1-1", "section": "A", "row": 1, "seat": 1, "x": -12.5, "y": 20 },
-    { "id": "A-1-2", "section": "A", "row": 1, "seat": 2, "x": -10.5, "y": 20, "z": 0.5 }
+  "areas": [
+    { "id": "front-left", "name": "Front Left", "points": [[-40, 12], [-10, 12], [-10, 35], [-46, 35]] },
+    { "id": "centre", "name": "Centre", "points": [[-8, 12], [8, 12], [8, 35], [-8, 35]] },
+    { "id": "balcony", "name": "Balcony", "points": [[-40, 60], [40, 60], [40, 75], [-40, 75]], "z": 12 }
   ]
 }
 ```
@@ -144,21 +148,22 @@ Two ways to describe your room. Any consistent unit works (feet, metres, drawing
 | Field | Required | Meaning |
 |---|---|---|
 | `name` | **yes** | Room name shown in the app |
-| `seats[]` | **yes** | 1 – 20,000 seats |
-| `seats[].id` | **yes** | Unique label, e.g. `"A-12-4"`. Readings are stored against it — keep it stable |
-| `seats[].x`, `seats[].y` | **yes** | Position |
-| `seats[].z` | no | Height (balcony, rake) |
-| `seats[].section` / `.row` / `.seat` | no | Labels and walk-through order (default section: `Main`) |
-| `seats[].rotation` | no | Degrees, 0 = facing up the screen. Default: facing the stage |
+| `areas[]` | **yes** | 1 – 500 areas, in walk-through order |
+| `areas[].id` | **yes** | Unique label, e.g. `"front-left"`. Readings are stored against it — keep it stable |
+| `areas[].name` | no | Shown on the map (default: the id) |
+| `areas[].points` | **yes** | The outline: 3 or more corners as `[x, y]` |
+| `areas[].z` | no | Height (balcony, rake) |
 | `units` | no | `px` (default), `ft`, `in`, `m`, `cm`, `mm` |
 | `yAxis` | no | `down` (default — screen/SVG style) or `up` (CAD style) |
-| `stage` | no | Centre front of the stage; seats face it |
+| `stage` | no | Centre front of the stage |
 | `foh` | no | Suggested FOH position (you can move it in setup) |
-| `background` | no | A floor-plan image under the seats: `{ "image": "data:image/svg+xml;base64,…", "x", "y", "width", "height", "opacity" }` (SVG, PNG, JPEG or WebP, up to 25 MB) |
+| `background` | no | A floor-plan image under the areas: `{ "image": "data:image/png;base64,…", "x", "y", "width", "height", "opacity" }` (SVG, PNG, JPEG or WebP, up to 25 MB) |
 
 The complete JSON Schema is in [`docs/auditorium.schema.json`](docs/auditorium.schema.json); an example is in [`docs/examples/`](docs/examples/).
 
-### CSV (`seat,x,y,z`)
+### Seat lists (older files and CSV)
+
+A list of individual seats still works — each **section** becomes one area outlined around its seats, and you can redraw or split them afterwards with **Edit areas**. That covers version-1 files (`"schemaVersion": 1` with `"seats": [{ "id", "x", "y", "section" }]`) and CSV:
 
 ```csv
 seat,x,y,z
@@ -167,13 +172,9 @@ A-1-2,-10.5,20,0
 B-2-7,4,24.5,0.3
 ```
 
-- The header line is optional. `z` can be empty.
-- Seat labels are split on `-`, space, `_`, `.` or `/`: `A-12-4` → section **A**, row **12**, seat **4**; `12-4` → row 12, seat 4.
-- Or add columns named `section`, `row`, `number`.
+- The header line is optional; `z` can be empty. Add a `section` column, or use labels like `A-12-4` (section **A**).
 - Commas, semicolons or tabs all work. Lines starting with `#` are ignored.
 - In setup you choose the venue name, units, and whether Y goes up (CAD — the default for CSV) or down.
-
-Exporting from CAD: most CAD tools can export block insertion points (seat blocks) as CSV — keep the seat label, X, Y and Z columns.
 
 ---
 
@@ -186,10 +187,10 @@ Everything lives in your user folder:
 
 | File | What's in it |
 |---|---|
-| `venue.json` | The auditorium, FOH position, Smaart settings and field mapping, seat edits (`schemaVersion` 1) |
-| `measurements.json` | Seat readings and frequency responses |
+| `venue.json` | The auditorium and its areas, FOH position, Smaart settings (`schemaVersion` 2). Venues from Roomio 0.1.x (seat by seat) are converted to areas the first time they open — the originals are kept in `backups/` |
+| `measurements.json` | Area readings and frequency responses |
 | `credentials.json` | The Smaart API password, encrypted with your system keychain |
-| `backups/` | Venues replaced by New Venue, Reset or Import |
+| `backups/` | Venues replaced by New Venue, Reset or Import, and the originals of converted 0.1.x venues |
 
 **Settings** (⌘, / Ctrl+,) and the **Venue** (macOS) / **File** (Windows) menu:
 
@@ -210,8 +211,8 @@ Everything lives in your user folder:
 | *"Smaart needs its API password"* / *"rejected the API password"* | Enter the same password as in Smaart's API preferences, then **Connect** |
 | Connected, but values show — | Smaart has nothing to stream: calibrate the FOH input and start a spectrum measurement. The Smaart dialog's **Streaming now** shows what Roomio is receiving |
 | Works on the Smaart computer but not from another one | Use the Smaart computer's IP as host, and allow port 26000 in its firewall |
-| The auditorium file won't load | Setup lists each problem with its line or seat number — fix those and choose the file again |
-| A floor plan finds too few / too many seats | Adjust **Sensitivity**, or box a seat that's drawn cleanly (no labels or lines through it), then fix the rest with **Add / remove** |
+| The auditorium file won't load | Setup lists each problem with its line, area or seat number — fix those and choose the file again |
+| An area finished too early | Corners snap closed when you click near the first one — zoom in for small areas, or **✎** redraw it |
 
 ---
 

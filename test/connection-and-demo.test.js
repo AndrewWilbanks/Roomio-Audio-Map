@@ -28,12 +28,14 @@ test('connection errors are worded plainly (timeout, unreachable, permission, re
   assert.match(describeError({ code: 'ENOTFOUND' }, cfg), /Can't find a computer called "booth"/);
 });
 
-test('demo: valid venue in the app format, ~40% of seats pre-measured, simulated feed maps onto its paths', async () => {
+test('demo: valid venue in the app format, most areas pre-measured, simulated feed maps onto its paths', async () => {
   const text = fs.readFileSync(path.join(__dirname, '../renderer/examples/example-hall.auditorium.json'), 'utf8');
   const { venue, measurements } = demo.buildDemo(text);
   assert.ok(A.parseAuditoriumJson(venue.auditorium).ok);
   assert.strictEqual(venue.demo, true);
-  assert.ok(measurements.spectra.length > 50 && measurements.spectra.length < 120);
+  assert.strictEqual(venue.schemaVersion, 2);
+  const areas = venue.auditorium.areas.length;
+  assert.strictEqual(measurements.spectra.length, areas - 2, 'all but two areas measured');
   assert.strictEqual(measurements.readings.length, measurements.spectra.length * 4);
   const s = new demo.DemoSmaart();
   const msgs = [];

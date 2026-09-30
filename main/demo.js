@@ -1,4 +1,4 @@
-// demo.js — demo mode: the bundled example hall, pre-measured seats, and a simulated Smaart
+// demo.js — demo mode: the bundled example hall, pre-measured areas, and a simulated Smaart
 // feed generated in-process (no server, no network, no child processes — see SANDBOX.md).
 // DemoSmaart has the same surface as SmaartService (connect/stop/retryNow/send/state + events).
 const EventEmitter = require('events');
@@ -35,7 +35,7 @@ function programCurve(level, t = 0) {
   });
 }
 
-// How a seat differs from FOH per band: farther = quieter and duller, near walls = more low end
+// How an area differs from FOH per band: farther = quieter and duller, near walls = more low end
 function seatDeltaCurve(seat, room, foh, r) {
   const stage = room.stage || { x: room.center.x, y: room.viewBox[1] };
   const dSeat = Math.max(1, Math.hypot(seat.x - stage.x, seat.y - stage.y));
@@ -69,20 +69,20 @@ function buildDemo(exampleText) {
   const fohFile = a.foh || { x: room.center.x, y: (room.center.y + (room.viewBox[1] + room.viewBox[3])) / 2 * room.flip };
   const fohMap = { x: fohFile.x, y: fohFile.y * room.flip };
   const venue = {
-    schemaVersion: 1, createdAt: new Date().toISOString(), demo: true,
+    schemaVersion: 2, createdAt: new Date().toISOString(), demo: true,
     auditorium: { ...a, name: `${a.name} (demo)` },
     foh: fohFile,
     smaart: DEMO_SMAART,
-    seatEdits: { deleted: [], added: [], labels: {} },
     preferences: { ui: { interpolate: true, devBasis: 'spl', labels: true }, manualBooth: {} },
   };
-  // measure about 40% of the seats, spread across the room
+  // every area measured except two, so "Fill gaps" has something to estimate
   const r = rng(42);
+  const skip = new Set([room.areas[1 % room.areas.length].id, room.areas[4 % room.areas.length].id]);
   const readings = [], spectra = [];
   const when = new Date(Date.now() - 3600_000).toISOString();
   const booth = programCurve(94);
-  room.seats.forEach((s, i) => {
-    if (r() > 0.4) return;
+  room.areas.forEach((s, i) => {
+    if (skip.has(s.id) && room.areas.length > 3) return;
     const delta = seatDeltaCurve(s, room, fohMap, r);
     const seatCurve = booth.map((v, k) => r1(v + delta[k]));
     spectra.push({ id: `demo-sp-${i}`, seat_id: s.id, seat_bins: seatCurve, booth_bins: booth, source: 'demo', notes: null, measured_at: when });
@@ -111,7 +111,7 @@ class DemoSmaart extends EventEmitter {
     this.setStatus('live', 'Demo — simulated Smaart data');
     this.timer = setInterval(() => this.sample().forEach(m => this.emit('message', JSON.stringify(m))), 250);
   }
-  // FOH level drifts ±3 dB and the program's low end breathes, so seats visibly follow it
+  // FOH level drifts ±3 dB and the program's low end breathes, so the areas visibly follow it
   sample() {
     const t = (Date.now() - this.t0) / 1000;
     const level = 94 + 3 * Math.sin(t / 5) + (Math.random() - 0.5) * 0.6;
